@@ -47,6 +47,7 @@ func (x *CnvdCrawler) VulList(proxyProvider ProxyProvider) error {
 		// 请求列表页
 		list, err := x.RequestVulListByOffset(offset, FixedProxyProvider(proxy))
 		if err != nil {
+			// TODO 连续N次错误时再切换代理
 			if isProxyInvalid(err) {
 				// 代理失效了，换个新的代理
 				time.Sleep(time.Second * 3)
