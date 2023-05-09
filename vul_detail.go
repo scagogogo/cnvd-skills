@@ -1,0 +1,162 @@
+package cnvd_crawler
+
+import (
+	jsl_sdk "github.com/JSREP/go-jsl-sdk"
+	"github.com/PuerkitoBio/goquery"
+	"strings"
+)
+
+// ------------------------------------------------ ---------------------------------------------------------------------
+
+// VulDetail 表示CNVD的漏洞信息
+type VulDetail struct {
+
+	URL string
+
+	// CNVD漏洞编号
+	CNVD string
+
+	// 此漏洞对应的CVE编号
+	CVE        string
+
+	// 公开日期
+	PublishTimeStr string
+
+	// 危害级别
+	HazardLevel *HazardLevel
+
+	// 影响产品
+	Product string
+
+	// 漏洞描述
+	Description string
+
+	// 漏洞类型
+	Category string
+
+	// 参考链接
+	Reference string
+
+	// 漏洞解决方案
+	FixPlan string
+
+	// 厂商补丁
+	VendorPatchHTML string
+
+	// 验证信息
+	Validate string
+
+	// 报送时间
+	PostTimeStr string
+
+	// 收录时间
+	RecordTimeStr string
+
+	// 更新时间
+	UpdateTimeStr string
+
+	// 漏洞附件
+	AttachFile string
+
+}
+
+// HazardLevel 危害级别
+type HazardLevel struct {
+
+	// 评级，低中高严重之类的
+	Level string
+
+	// CNVD使用的评分系统是CVSS2
+	CVSS2 string
+}
+
+// ------------------------------------------------ ---------------------------------------------------------------------
+
+// RequestVulDetailByID 根据CNVD漏洞ID请求漏洞信息，比如： CNVD-2021-67823
+func (x *CnvdCrawler) RequestVulDetailByID(cnvd string, proxyProvider ProxyProvider) (*VulDetail, error) {
+	targetUrl := "https://www.cnvd.org.cn/flaw/show/" + cnvd
+	return x.RequestVulDetailByURL(targetUrl, proxyProvider)
+}
+
+func (x *CnvdCrawler) RequestVulDetailByURL(detailPageURL string, proxyProvider ProxyProvider) (*VulDetail, error) {
+	proxy, err := proxyProvider()
+	if err != nil {
+		return nil, err
+	}
+	response, err := jsl_sdk.NewJslClient(&jsl_sdk.ClientOptions{
+		Proxy: proxy,
+	}).Get(detailPageURL)
+	if err != nil {
+		return nil, err
+	}
+	detail, err := x.ParseVulDetail(response.String())
+	if err != nil {
+		return detail, err
+	}
+	detail.URL = detailPageURL
+	return detail, nil
+}
+
+func (x *CnvdCrawler) ParseVulDetail(responseString string) (*VulDetail, error) {
+	detail := &VulDetail{}
+
+	document, err := goquery.NewDocumentFromReader(strings.NewReader(responseString))
+	if err != nil {
+		return nil, err
+	}
+
+	document.Find(".gg_detail tr").Each(func(i int, selection *goquery.Selection) {
+		keySelection := selection.Find("td").First()
+		key := strings.TrimSpace(keySelection.Text())
+		valueSelection := keySelection.Next()
+		valueText := strings.TrimSpace(valueSelection.Text())
+		valueHtml, _ := valueSelection.Html()
+		//fmt.Println(key)
+		//fmt.Println(valueText)
+		switch key {
+		case "CNVD-ID":
+			detail.CNVD = valueText
+		case "CVE ID":
+			detail.CVE = valueText
+		case "公开日期":
+			detail.PublishTimeStr = valueText
+		case "危害级别":
+			split := strings.SplitN(valueText, "\n", 2)
+			level := strings.TrimSpace(split[0])
+			cvss2 := strings.TrimRight(strings.TrimLeft(strings.TrimSpace(split[1]), "("), ")")
+			detail.HazardLevel = &HazardLevel{
+				Level: level,
+				CVSS2: cvss2,
+			}
+		case "影响产品":
+			detail.Product = valueText
+		case "漏洞描述":
+			detail.Description = valueText
+		case "漏洞类型":
+			detail.Category = valueText
+		case "参考链接":
+			detail.Reference = valueText
+		case "漏洞解决方案":
+			detail.FixPlan = valueText
+		case "厂商补丁":
+			detail.VendorPatchHTML = valueHtml
+		case "验证信息":
+			detail.Validate = valueText
+		case "报送时间":
+			detail.PostTimeStr = valueText
+		case "收录时间":
+			detail.RecordTimeStr = valueText
+		case "更新时间":
+			detail.UpdateTimeStr = valueText
+		case "漏洞附件":
+			detail.AttachFile = valueText
+		default:
+			//fmt.Println("未识别的Key： " + key)
+		}
+	})
+
+	return detail, nil
+}
+
+// ------------------------------------------------ ---------------------------------------------------------------------
+

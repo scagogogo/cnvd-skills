@@ -1,9 +1,12 @@
 package cnvd_crawler
 
 import (
+	"encoding/json"
 	"fmt"
 	jsl_sdk "github.com/JSREP/go-jsl-sdk"
 	"github.com/PuerkitoBio/goquery"
+	"github.com/golang-infrastructure/go-pointer"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -11,37 +14,121 @@ import (
 
 // ------------------------------------------------ ---------------------------------------------------------------------
 
+// VulList 漏洞列表
 type VulList struct {
-	Page int
+
+	// 当前处在第几页
+	Page *int
+
+	// 当前页列出的漏洞都有哪些
 	VulListItems []*VulListItem
 }
 
+// VulListItem 列表页的一条漏洞
 type VulListItem struct {
+
+	// 漏洞的标题
 	Title string
+
+	// 相应页的链接
 	Href string
 }
 
 // ------------------------------------------------ ---------------------------------------------------------------------
 
-// VulList TODO 代理IP
-func (x *CnvdCrawler) VulList() error {
+func (x *CnvdCrawler) VulList(proxyProvider ProxyProvider) error {
+	proxy, err := proxyProvider()
+	if err != nil {
+		return err
+	}
 	offset := 0
-	for  {
-		targetUrl := fmt.Sprintf("https://www.cnvd.org.cn/flaw/list?numPerPage=10&offset=%d&max=10", offset)
-		response, err := jsl_sdk.NewJslClient().Get(targetUrl)
+	for {
+
+		// 请求列表页
+		list, err := x.RequestVulListByOffset(offset, FixedProxyProvider(proxy))
 		if err != nil {
-			return err
+			if isProxyInvalid(err) {
+				// 代理失效了，换个新的代理
+				time.Sleep(time.Second * 3)
+				proxy, err = proxyProvider()
+				if err != nil {
+					panic(err)
+				}
+				fmt.Println("切换新的代理IP： " + proxy)
+				continue
+			} else {
+				panic(err)
+			}
 		}
 
-		list, err := x.ParseVulList(response.String())
-		if err != nil {
-			return err
+		// 抓取详情页
+		for _, item := range list.VulListItems {
+			fmt.Println("开始请求： " + item.Title)
+			for {
+				detail, err := x.RequestVulDetailByURL("https://www.cnvd.org.cn"+item.Href, FixedProxyProvider(proxy))
+				if err != nil {
+					if isProxyInvalid(err) {
+						// 代理失效了，换个新的代理
+						time.Sleep(time.Second * 3)
+						proxy, err = proxyProvider()
+						if err != nil {
+							panic(err)
+						}
+						fmt.Println("切换新的代理IP： " + proxy)
+						continue
+					} else {
+						panic(err)
+					}
+				}
+
+				// 校验有效性
+				if detail.CNVD == "" {
+					fmt.Println(detail.URL + ", 抓取错误，重新抓取...")
+					continue
+				}
+
+				marshal, err := json.Marshal(detail)
+				if err != nil {
+					fmt.Println(err.Error())
+					continue
+				}
+				fmt.Println("抓取成功： " + string(marshal))
+
+				marshal = append(marshal, []byte("\n")...)
+				file, err := os.OpenFile("data/test.jsonl", os.O_CREATE|os.O_WRONLY|os.O_APPEND, os.ModePerm)
+				if err != nil {
+					panic(err)
+				}
+				_, err = file.Write(marshal)
+				if err != nil {
+					panic(err)
+				}
+				err = file.Close()
+				if err != nil {
+					panic(err)
+				}
+				break
+			}
 		}
-		fmt.Println(list)
 
 		offset += 10
-		time.Sleep(time.Second*3)
+		time.Sleep(time.Second * 3)
 	}
+}
+
+func (x *CnvdCrawler) RequestVulListByOffset(offset int, proxyProvider ProxyProvider) (*VulList, error) {
+	proxy, err := proxyProvider()
+	if err != nil {
+		return nil, err
+	}
+	targetUrl := fmt.Sprintf("https://www.cnvd.org.cn/flaw/list?numPerPage=10&offset=%d&max=10", offset)
+	response, err := jsl_sdk.NewJslClient(&jsl_sdk.ClientOptions{
+		Proxy: proxy,
+	}).Get(targetUrl)
+	if err != nil {
+		return nil, err
+	}
+	return x.ParseVulList(response.String())
 }
 
 func (x *CnvdCrawler) ParseVulList(responseBody string) (*VulList, error) {
@@ -56,7 +143,7 @@ func (x *CnvdCrawler) ParseVulList(responseBody string) (*VulList, error) {
 	if pageNumStr != "" {
 		pageNum, err := strconv.Atoi(pageNumStr)
 		if err == nil {
-			vulList.Page = pageNum
+			vulList.Page = pointer.ToPointer(pageNum)
 		}
 	}
 
@@ -64,9 +151,9 @@ func (x *CnvdCrawler) ParseVulList(responseBody string) (*VulList, error) {
 	document.Find("a[href^='/flaw/show/CNVD-']").Each(func(i int, selection *goquery.Selection) {
 		title, _ := selection.Attr("title")
 		href, _ := selection.Attr("href")
-		vulList.VulListItems = append(vulList.VulListItems, &VulListItem {
+		vulList.VulListItems = append(vulList.VulListItems, &VulListItem{
 			Title: title,
-			Href: href,
+			Href:  href,
 		})
 	})
 	return vulList, nil

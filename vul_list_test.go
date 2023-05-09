@@ -6,6 +6,6 @@ import (
 )
 
 func TestCnvdCrawler_VulList(t *testing.T) {
-	err := NewCnvdCrawler().VulList()
+	err := NewCnvdCrawler().VulList(PinYiProxyProvider)
 	assert.NotNil(t, err)
 }

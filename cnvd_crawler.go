@@ -7,10 +7,3 @@ func NewCnvdCrawler() *CnvdCrawler {
 	return &CnvdCrawler{
 	}
 }
-
-
-func main() {
-
-
-	//
-}
