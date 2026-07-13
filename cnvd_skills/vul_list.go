@@ -43,85 +43,113 @@ type VulListItem struct {
 
 // ------------------------------------------------ ---------------------------------------------------------------------
 
-func (x *CnvdSkills) VulList(proxyProvider ProxyProvider) error {
-	proxy, err := proxyProvider()
-	if err != nil {
-		return err
+// VulList 抓取漏洞列表并逐条抓取详情，写入输出文件（JSONL）。
+// 接收 config 控制输出路径与节奏；接收 ctx 支持取消。
+// 不再 panic，所有错误返回 error。当 TotalPage 可解析时按总页数停止，否则持续翻页直到详情列表为空。
+func (x *CnvdSkills) VulList(ctx context.Context, proxyProvider ProxyProvider, config *Config) error {
+	if config == nil {
+		config = DefaultConfig()
 	}
-	offset := 0
+	page := 1
 	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+		}
 
-		// 请求列表页
-		list, err := x.RequestVulListByOffset(context.Background(), offset, FixedProxyProvider(proxy))
+		offset := (page - 1) * config.NumPerPage
+		list, err := x.RequestVulListByOffset(ctx, offset, proxyProvider)
 		if err != nil {
-			// TODO 连续N次错误时再切换代理
 			if isProxyInvalid(err) {
-				// 代理失效了，换个新的代理
-				time.Sleep(time.Second * 3)
-				proxy, err = proxyProvider()
-				if err != nil {
-					panic(err)
-				}
-				fmt.Println("切换新的代理IP： " + proxy)
-				continue
-			} else {
-				panic(err)
+				time.Sleep(time.Duration(config.ProxyRetryIntervalSeconds) * time.Second)
+				continue // 同一页重试，换代理
 			}
+			return err
 		}
 
-		// 抓取详情页
+		// 列表为空 → 抓取完成
+		if len(list.VulListItems) == 0 {
+			fmt.Println("当前页无漏洞条目，抓取完成")
+			return nil
+		}
+
 		for _, item := range list.VulListItems {
-			fmt.Println("开始请求： " + item.Title)
-			for {
-				detail, err := x.RequestVulDetailByURL(context.Background(), "https://www.cnvd.org.cn"+item.Href, FixedProxyProvider(proxy))
-				if err != nil {
-					if isProxyInvalid(err) {
-						// 代理失效了，换个新的代理
-						time.Sleep(time.Second * 3)
-						proxy, err = proxyProvider()
-						if err != nil {
-							panic(err)
-						}
-						fmt.Println("切换新的代理IP： " + proxy)
-						continue
-					} else {
-						panic(err)
-					}
-				}
-
-				// 校验有效性
-				if detail.CNVD == "" {
-					fmt.Println(detail.URL + ", 抓取错误，重新抓取...")
-					continue
-				}
-
-				marshal, err := json.Marshal(detail)
-				if err != nil {
-					fmt.Println(err.Error())
-					continue
-				}
-				fmt.Println("抓取成功： " + string(marshal))
-
-				marshal = append(marshal, []byte("\n")...)
-				file, err := os.OpenFile("data/test.jsonl", os.O_CREATE|os.O_WRONLY|os.O_APPEND, os.ModePerm)
-				if err != nil {
-					panic(err)
-				}
-				_, err = file.Write(marshal)
-				if err != nil {
-					panic(err)
-				}
-				err = file.Close()
-				if err != nil {
-					panic(err)
-				}
-				break
+			if err := x.fetchAndSaveDetail(ctx, proxyProvider, config, item); err != nil {
+				return err
 			}
 		}
 
-		offset += 10
-		time.Sleep(time.Second * 3)
+		// 有总页数则按其停止
+		if list.TotalPage != nil && page >= *list.TotalPage {
+			fmt.Printf("已抓取到最后一页（第 %d 页），抓取完成\n", page)
+			return nil
+		}
+		page++
+		time.Sleep(time.Duration(config.ListPageIntervalSeconds) * time.Second)
 	}
+}
+
+// fetchAndSaveDetail 抓取单条漏洞详情并追加写入输出文件。
+// 代理失效时换 IP 重试，CNVD 为空（解析异常）时重试，其余错误上抛。
+func (x *CnvdSkills) fetchAndSaveDetail(ctx context.Context, proxyProvider ProxyProvider, config *Config, item *VulListItem) error {
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+		}
+
+		fmt.Println("开始请求： " + item.Title)
+		detail, err := x.RequestVulDetailByURL(ctx, "https://www.cnvd.org.cn"+item.Href, proxyProvider)
+		if err != nil {
+			if isProxyInvalid(err) {
+				time.Sleep(time.Duration(config.ProxyRetryIntervalSeconds) * time.Second)
+				continue
+			}
+			return err
+		}
+		if detail.CNVD == "" {
+			fmt.Println(item.Href + ", 抓取错误，重新抓取...")
+			continue
+		}
+
+		marshal, err := json.Marshal(detail)
+		if err != nil {
+			return fmt.Errorf("marshal detail failed: %w", err)
+		}
+		marshal = append(marshal, '\n')
+
+		if err := os.MkdirAll(parentDir(config.OutputPath), os.ModePerm); err != nil {
+			return err
+		}
+		file, err := os.OpenFile(config.OutputPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, os.ModePerm)
+		if err != nil {
+			return err
+		}
+		if _, err := file.Write(marshal); err != nil {
+			_ = file.Close()
+			return err
+		}
+		if err := file.Close(); err != nil {
+			return err
+		}
+		time.Sleep(time.Duration(config.DetailIntervalSeconds) * time.Second)
+		return nil
+	}
+}
+
+// parentDir 返回路径的父目录，用于创建输出目录。
+func parentDir(path string) string {
+	for i := len(path) - 1; i >= 0; i-- {
+		if path[i] == '/' {
+			if i == 0 {
+				return "/"
+			}
+			return path[:i]
+		}
+	}
+	return "."
 }
 
 // RequestVulListByOffset 请求指定偏移量的漏洞列表页并解析。

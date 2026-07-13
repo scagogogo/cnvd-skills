@@ -1,12 +1,14 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"github.com/scagogogo/cnvd-skills/cnvd_skills"
 )
 
 func main() {
-	err := cnvd_skills.NewCnvdSkills().VulList(cnvd_skills.PinYiProxyProvider)
+	ctx := context.Background()
+	err := cnvd_skills.NewCnvdSkills().VulList(ctx, cnvd_skills.PinYiProxyProvider, cnvd_skills.DefaultConfig())
 	if err != nil {
 		fmt.Println("抓取出错： " + err.Error())
 	} else {
