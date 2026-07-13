@@ -36,7 +36,7 @@ type VulListItem struct {
 
 // ------------------------------------------------ ---------------------------------------------------------------------
 
-func (x *CnvdCrawler) VulList(proxyProvider ProxyProvider) error {
+func (x *CnvdSkills) VulList(proxyProvider ProxyProvider) error {
 	proxy, err := proxyProvider()
 	if err != nil {
 		return err
@@ -117,7 +117,7 @@ func (x *CnvdCrawler) VulList(proxyProvider ProxyProvider) error {
 	}
 }
 
-func (x *CnvdCrawler) RequestVulListByOffset(offset int, proxyProvider ProxyProvider) (*VulList, error) {
+func (x *CnvdSkills) RequestVulListByOffset(offset int, proxyProvider ProxyProvider) (*VulList, error) {
 	proxy, err := proxyProvider()
 	if err != nil {
 		return nil, err
@@ -132,7 +132,7 @@ func (x *CnvdCrawler) RequestVulListByOffset(offset int, proxyProvider ProxyProv
 	return x.ParseVulList(response.String())
 }
 
-func (x *CnvdCrawler) ParseVulList(responseBody string) (*VulList, error) {
+func (x *CnvdSkills) ParseVulList(responseBody string) (*VulList, error) {
 	document, err := goquery.NewDocumentFromReader(strings.NewReader(responseBody))
 	if err != nil {
 		return nil, err

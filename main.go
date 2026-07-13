@@ -6,7 +6,7 @@ import (
 )
 
 func main() {
-	err := cnvd_crawler.NewCnvdCrawler().VulList(cnvd_crawler.PinYiProxyProvider)
+	err := cnvd_skills.NewCnvdSkills().VulList(cnvd_skills.PinYiProxyProvider)
 	if err != nil {
 		fmt.Println("抓取出错： " + err.Error())
 	} else {

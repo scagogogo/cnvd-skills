@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-func TestCnvdCrawler_VulList(t *testing.T) {
-	err := NewCnvdCrawler().VulList(PinYiProxyProvider)
+func TestCnvdSkills_VulList(t *testing.T) {
+	err := NewCnvdSkills().VulList(PinYiProxyProvider)
 	assert.NotNil(t, err)
 }

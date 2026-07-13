@@ -73,12 +73,12 @@ type HazardLevel struct {
 // ------------------------------------------------ ---------------------------------------------------------------------
 
 // RequestVulDetailByID 根据CNVD漏洞ID请求漏洞信息，比如： CNVD-2021-67823
-func (x *CnvdCrawler) RequestVulDetailByID(cnvd string, proxyProvider ProxyProvider) (*VulDetail, error) {
+func (x *CnvdSkills) RequestVulDetailByID(cnvd string, proxyProvider ProxyProvider) (*VulDetail, error) {
 	targetUrl := "https://www.cnvd.org.cn/flaw/show/" + cnvd
 	return x.RequestVulDetailByURL(targetUrl, proxyProvider)
 }
 
-func (x *CnvdCrawler) RequestVulDetailByURL(detailPageURL string, proxyProvider ProxyProvider) (*VulDetail, error) {
+func (x *CnvdSkills) RequestVulDetailByURL(detailPageURL string, proxyProvider ProxyProvider) (*VulDetail, error) {
 	proxy, err := proxyProvider()
 	if err != nil {
 		return nil, err
@@ -97,7 +97,7 @@ func (x *CnvdCrawler) RequestVulDetailByURL(detailPageURL string, proxyProvider 
 	return detail, nil
 }
 
-func (x *CnvdCrawler) ParseVulDetail(responseString string) (*VulDetail, error) {
+func (x *CnvdSkills) ParseVulDetail(responseString string) (*VulDetail, error) {
 	detail := &VulDetail{}
 
 	document, err := goquery.NewDocumentFromReader(strings.NewReader(responseString))

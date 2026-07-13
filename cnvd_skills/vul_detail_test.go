@@ -7,10 +7,10 @@ import (
 	"testing"
 )
 
-func TestCnvdCrawler_RequestVulDetail(t *testing.T) {
+func TestCnvdSkills_RequestVulDetail(t *testing.T) {
 	proxyProvider := FixedProxyProvider("http://121.206.45.124:64257")
 	//proxyProvider := PinYiProxyProvider
-	detail, err := NewCnvdCrawler().RequestVulDetailByID("CNVD-2021-67823", proxyProvider)
+	detail, err := NewCnvdSkills().RequestVulDetailByID("CNVD-2021-67823", proxyProvider)
 	assert.Nil(t, err)
 	marshal, err := json.Marshal(detail)
 	assert.Nil(t, err)
