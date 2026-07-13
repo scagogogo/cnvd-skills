@@ -11,14 +11,13 @@ import (
 
 // VulDetail 表示CNVD的漏洞信息
 type VulDetail struct {
-
 	URL string
 
 	// CNVD漏洞编号
 	CNVD string
 
 	// 此漏洞对应的CVE编号
-	CVE        string
+	CVE string
 
 	// 公开日期
 	PublishTimeStr string
@@ -61,7 +60,6 @@ type VulDetail struct {
 
 	// 漏洞附件
 	AttachFile string
-
 }
 
 // HazardLevel 危害级别
@@ -210,4 +208,3 @@ func decodeHTMLEntities(htmlStr string) string {
 }
 
 // ------------------------------------------------ ---------------------------------------------------------------------
-

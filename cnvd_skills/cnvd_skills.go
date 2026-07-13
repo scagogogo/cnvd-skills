@@ -4,6 +4,5 @@ type CnvdSkills struct {
 }
 
 func NewCnvdSkills() *CnvdSkills {
-	return &CnvdSkills{
-	}
+	return &CnvdSkills{}
 }

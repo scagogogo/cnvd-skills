@@ -22,10 +22,10 @@ type Config struct {
 // DefaultConfig 返回默认配置。
 func DefaultConfig() *Config {
 	return &Config{
-		OutputPath:               "data/test.jsonl",
-		NumPerPage:               10,
-		ListPageIntervalSeconds:  3,
-		DetailIntervalSeconds:    3,
+		OutputPath:                "data/test.jsonl",
+		NumPerPage:                10,
+		ListPageIntervalSeconds:   3,
+		DetailIntervalSeconds:     3,
 		ProxyRetryIntervalSeconds: 3,
 	}
 }
