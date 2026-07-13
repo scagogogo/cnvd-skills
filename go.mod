@@ -1,4 +1,4 @@
-module github.com/scagogogo/cnvd-crawler
+module github.com/scagogogo/cnvd-skills
 
 go 1.18
 

@@ -2,7 +2,7 @@ package main
 
 import (
 	"fmt"
-	"github.com/scagogogo/cnvd-crawler/cnvd_crawler"
+	"github.com/scagogogo/cnvd-skills/cnvd_skills"
 )
 
 func main() {

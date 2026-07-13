@@ -1,4 +1,4 @@
-package cnvd_crawler
+package cnvd_skills
 
 import (
 	"github.com/stretchr/testify/assert"
