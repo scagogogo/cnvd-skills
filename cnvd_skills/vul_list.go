@@ -21,6 +21,12 @@ type VulList struct {
 	// 当前处在第几页
 	Page *int
 
+	// 总页数（用于判断何时停止翻页）
+	TotalPage *int
+
+	// 总记录数
+	TotalRecord *int
+
 	// 当前页列出的漏洞都有哪些
 	VulListItems []*VulListItem
 }
@@ -135,6 +141,8 @@ func (x *CnvdSkills) RequestVulListByOffset(ctx context.Context, offset int, pro
 	return x.ParseVulList(response.String())
 }
 
+// ParseVulList 解析漏洞列表页 HTML。
+// 解析当前页码、总页数、总记录数及当前页漏洞条目。
 func (x *CnvdSkills) ParseVulList(responseBody string) (*VulList, error) {
 	document, err := goquery.NewDocumentFromReader(strings.NewReader(responseBody))
 	if err != nil {
@@ -142,22 +150,37 @@ func (x *CnvdSkills) ParseVulList(responseBody string) (*VulList, error) {
 	}
 	vulList := &VulList{}
 
-	// 页码
-	pageNumStr := document.Find("span.currentStep").Text()
+	// 当前页码
+	pageNumStr := strings.TrimSpace(document.Find("span.currentStep").Text())
 	if pageNumStr != "" {
-		pageNum, err := strconv.Atoi(pageNumStr)
-		if err == nil {
+		if pageNum, err := strconv.Atoi(pageNumStr); err == nil {
 			vulList.Page = pointer.ToPointer(pageNum)
 		}
 	}
 
-	// 列表
+	// 总页数
+	totalPageStr := strings.TrimSpace(document.Find("span.totalPage").Text())
+	if totalPageStr != "" {
+		if totalPage, err := strconv.Atoi(totalPageStr); err == nil {
+			vulList.TotalPage = pointer.ToPointer(totalPage)
+		}
+	}
+
+	// 总记录数
+	totalRecordStr := strings.TrimSpace(document.Find("span.totalRecord").Text())
+	if totalRecordStr != "" {
+		if totalRecord, err := strconv.Atoi(totalRecordStr); err == nil {
+			vulList.TotalRecord = pointer.ToPointer(totalRecord)
+		}
+	}
+
+	// 列表条目
 	document.Find("a[href^='/flaw/show/CNVD-']").Each(func(i int, selection *goquery.Selection) {
 		title, _ := selection.Attr("title")
 		href, _ := selection.Attr("href")
 		vulList.VulListItems = append(vulList.VulListItems, &VulListItem{
-			Title: title,
-			Href:  href,
+			Title: strings.TrimSpace(title),
+			Href:  strings.TrimSpace(href),
 		})
 	})
 	return vulList, nil
