@@ -1,6 +1,7 @@
 package cnvd_skills
 
 import (
+	"context"
 	jsl_sdk "github.com/JSREP/go-jsl-sdk"
 	"github.com/PuerkitoBio/goquery"
 	"strings"
@@ -86,12 +87,14 @@ type VendorPatch struct {
 // ------------------------------------------------ ---------------------------------------------------------------------
 
 // RequestVulDetailByID 根据CNVD漏洞ID请求漏洞信息，比如： CNVD-2021-67823
-func (x *CnvdSkills) RequestVulDetailByID(cnvd string, proxyProvider ProxyProvider) (*VulDetail, error) {
+func (x *CnvdSkills) RequestVulDetailByID(ctx context.Context, cnvd string, proxyProvider ProxyProvider) (*VulDetail, error) {
 	targetUrl := "https://www.cnvd.org.cn/flaw/show/" + cnvd
-	return x.RequestVulDetailByURL(targetUrl, proxyProvider)
+	return x.RequestVulDetailByURL(ctx, targetUrl, proxyProvider)
 }
 
-func (x *CnvdSkills) RequestVulDetailByURL(detailPageURL string, proxyProvider ProxyProvider) (*VulDetail, error) {
+// RequestVulDetailByURL 根据详情页URL请求并解析漏洞信息。
+// ParseVulDetail 出错时返回 (nil, err) 而非 (detail, err)，避免调用方对 nil detail 解引用。
+func (x *CnvdSkills) RequestVulDetailByURL(ctx context.Context, detailPageURL string, proxyProvider ProxyProvider) (*VulDetail, error) {
 	proxy, err := proxyProvider()
 	if err != nil {
 		return nil, err
@@ -104,7 +107,7 @@ func (x *CnvdSkills) RequestVulDetailByURL(detailPageURL string, proxyProvider P
 	}
 	detail, err := x.ParseVulDetail(response.String())
 	if err != nil {
-		return detail, err
+		return nil, err // 关键：返回 nil detail，不再返回可能为 nil 的 detail
 	}
 	detail.URL = detailPageURL
 	return detail, nil

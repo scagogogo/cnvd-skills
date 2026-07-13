@@ -1,6 +1,7 @@
 package cnvd_skills
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	jsl_sdk "github.com/JSREP/go-jsl-sdk"
@@ -45,7 +46,7 @@ func (x *CnvdSkills) VulList(proxyProvider ProxyProvider) error {
 	for {
 
 		// 请求列表页
-		list, err := x.RequestVulListByOffset(offset, FixedProxyProvider(proxy))
+		list, err := x.RequestVulListByOffset(context.Background(), offset, FixedProxyProvider(proxy))
 		if err != nil {
 			// TODO 连续N次错误时再切换代理
 			if isProxyInvalid(err) {
@@ -66,7 +67,7 @@ func (x *CnvdSkills) VulList(proxyProvider ProxyProvider) error {
 		for _, item := range list.VulListItems {
 			fmt.Println("开始请求： " + item.Title)
 			for {
-				detail, err := x.RequestVulDetailByURL("https://www.cnvd.org.cn"+item.Href, FixedProxyProvider(proxy))
+				detail, err := x.RequestVulDetailByURL(context.Background(), "https://www.cnvd.org.cn"+item.Href, FixedProxyProvider(proxy))
 				if err != nil {
 					if isProxyInvalid(err) {
 						// 代理失效了，换个新的代理
@@ -117,7 +118,9 @@ func (x *CnvdSkills) VulList(proxyProvider ProxyProvider) error {
 	}
 }
 
-func (x *CnvdSkills) RequestVulListByOffset(offset int, proxyProvider ProxyProvider) (*VulList, error) {
+// RequestVulListByOffset 请求指定偏移量的漏洞列表页并解析。
+// offset 从 0 开始，每页 10 条。
+func (x *CnvdSkills) RequestVulListByOffset(ctx context.Context, offset int, proxyProvider ProxyProvider) (*VulList, error) {
 	proxy, err := proxyProvider()
 	if err != nil {
 		return nil, err

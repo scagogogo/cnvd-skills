@@ -51,11 +51,30 @@ func FixedProxyProvider(proxy string) ProxyProvider {
 
 // ------------------------------------------------ ---------------------------------------------------------------------
 
-// 判定是否把此错误归类于代理错误
+// isProxyInvalid 判定是否把此错误归类于代理错误（应换 IP 重试）。
+// 覆盖：TCP 读错误、EOF、代理连接拒绝、context 超时/取消。
 func isProxyInvalid(err error) bool {
-	return strings.HasPrefix(err.Error(), "read tcp ") ||
-		strings.HasSuffix(err.Error(), "unexpected EOF") ||
-		strings.Contains(err.Error(), "proxyconnect")
+	if err == nil {
+		return false
+	}
+	msg := err.Error()
+	switch {
+	case strings.HasPrefix(msg, "read tcp "):
+		return true
+	case strings.HasSuffix(msg, "unexpected EOF"):
+		return true
+	case strings.Contains(msg, "proxyconnect"):
+		return true
+	case strings.Contains(msg, "EOF"):
+		return true
+	case strings.Contains(msg, "connection refused"):
+		return true
+	case strings.Contains(msg, "i/o timeout"):
+		return true
+	case strings.Contains(msg, "context deadline exceeded"):
+		return true
+	}
+	return false
 }
 
 // ------------------------------------------------ ---------------------------------------------------------------------
