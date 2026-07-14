@@ -1,6 +1,7 @@
 package cnvd_skills
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -89,9 +90,46 @@ func (x *CnvdSkills) VulList(ctx context.Context, proxyProvider ProxyProvider, c
 	}
 }
 
+// loadExistingCnvdIDs 读取输出文件，返回已抓取过的 CNVD-ID 集合。
+// 文件不存在时返回空集合。每行是一条 VulDetail 的 JSON，含 CNVD 字段。
+func loadExistingCnvdIDs(outputPath string) map[string]struct{} {
+	existed := make(map[string]struct{})
+	data, err := os.ReadFile(outputPath)
+	if err != nil {
+		return existed
+	}
+	for _, line := range bytes.Split(data, []byte("\n")) {
+		line = bytes.TrimSpace(line)
+		if len(line) == 0 {
+			continue
+		}
+		var record struct {
+			CNVD string `json:"CNVD"`
+		}
+		if err := json.Unmarshal(line, &record); err != nil {
+			continue
+		}
+		if record.CNVD != "" {
+			existed[record.CNVD] = struct{}{}
+		}
+	}
+	return existed
+}
+
 // fetchAndSaveDetail 抓取单条漏洞详情并追加写入输出文件。
 // 代理失效时换 IP 重试，CNVD 为空（解析异常）时重试，其余错误上抛。
+// 当 config.EnableDedup 为 true 时，跳过输出文件中已存在的 CNVD-ID。
 func (x *CnvdSkills) fetchAndSaveDetail(ctx context.Context, proxyProvider ProxyProvider, config *Config, item *VulListItem) error {
+	// 去重：若该漏洞的 CNVD-ID 已在输出文件中，跳过
+	if config != nil && config.EnableDedup {
+		existed := loadExistingCnvdIDs(config.OutputPath)
+		if cnvdID := extractCnvdIDFromHref(item.Href); cnvdID != "" {
+			if _, ok := existed[cnvdID]; ok {
+				fmt.Printf("已存在，跳过： %s\n", cnvdID)
+				return nil
+			}
+		}
+	}
 	for {
 		select {
 		case <-ctx.Done():
@@ -149,6 +187,18 @@ func parentDir(path string) string {
 		}
 	}
 	return "."
+}
+
+// extractCnvdIDFromHref 从列表项相对链接提取 CNVD-ID。
+// 输入如 /flaw/show/CNVD-2021-67823，返回 CNVD-2021-67823。
+// 无法提取时返回空串。
+func extractCnvdIDFromHref(href string) string {
+	href = strings.TrimSpace(href)
+	idx := strings.Index(href, "CNVD-")
+	if idx < 0 {
+		return ""
+	}
+	return href[idx:]
 }
 
 // RequestVulListByOffset 请求指定偏移量的漏洞列表页并解析。
