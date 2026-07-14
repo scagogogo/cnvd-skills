@@ -2,6 +2,7 @@ package cnvd_skills
 
 import (
 	"context"
+	"fmt"
 	jsl_sdk "github.com/JSREP/go-jsl-sdk"
 	"github.com/PuerkitoBio/goquery"
 	"strings"
@@ -173,6 +174,20 @@ func (x *CnvdSkills) RequestVulDetailByURL(ctx context.Context, detailPageURL st
 		return nil, err
 	}
 	detail.URL = detailPageURL
+	return detail, nil
+}
+
+// FetchVulDetail 按 CNVD-ID 抓取单条漏洞详情并返回结构化结果（不写文件）。
+// 与 VulList 主流程的落盘行为解耦，供调用方按需取单条数据。
+// 失败时返回 (nil, err)。CNVD 为空（解析异常）返回 error 提示。
+func (x *CnvdSkills) FetchVulDetail(ctx context.Context, cnvd string, proxyProvider ProxyProvider) (*VulDetail, error) {
+	detail, err := x.RequestVulDetailByID(ctx, cnvd, proxyProvider)
+	if err != nil {
+		return nil, err
+	}
+	if detail.CNVD == "" {
+		return nil, fmt.Errorf("parsed detail for %s has empty CNVD-ID", cnvd)
+	}
 	return detail, nil
 }
 
