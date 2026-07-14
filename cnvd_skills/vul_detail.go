@@ -97,6 +97,63 @@ type VendorPatch struct {
 
 // ------------------------------------------------ ---------------------------------------------------------------------
 
+// requestWithRetry 对单个 URL 执行 jsl_sdk.Get，失败时按 config 重试。
+// 代理类错误（isProxyInvalid）会重新向 proxyProvider 取新 IP 重试；
+// 非代理错误在 MaxRetry 次内重试，超出返回最后一次错误。
+// config 为 nil 时退化为不重试的单次请求。全程响应 ctx 取消。
+func requestWithRetry(ctx context.Context, proxyProvider ProxyProvider, config *Config, targetUrl string) (string, error) {
+	var lastErr error
+	proxy, err := proxyProvider()
+	if err != nil {
+		return "", err
+	}
+	maxRetry := 0
+	if config != nil {
+		maxRetry = config.MaxRetry
+	}
+	for attempt := 0; attempt <= maxRetry; attempt++ {
+		select {
+		case <-ctx.Done():
+			return "", ctx.Err()
+		default:
+		}
+
+		response, getErr := jsl_sdk.NewJslClient(&jsl_sdk.ClientOptions{
+			Proxy: proxy,
+		}).Get(targetUrl)
+		if getErr == nil {
+			return response.String(), nil
+		}
+		lastErr = getErr
+
+		// 代理错误：换新 IP，不计入普通重试次数衰减
+		if isProxyInvalid(getErr) {
+			if config != nil && config.ProxyRetryIntervalSeconds > 0 {
+				select {
+				case <-ctx.Done():
+					return "", ctx.Err()
+				case <-time.After(time.Duration(config.ProxyRetryIntervalSeconds) * time.Second):
+				}
+			}
+			if newProxy, pErr := proxyProvider(); pErr == nil {
+				proxy = newProxy
+			}
+			// 取不到新代理：沿用旧错误继续重试
+			continue
+		}
+
+		// 非代理错误：等待后重试
+		if config != nil && config.ProxyRetryIntervalSeconds > 0 {
+			select {
+			case <-ctx.Done():
+				return "", ctx.Err()
+			case <-time.After(time.Duration(config.ProxyRetryIntervalSeconds) * time.Second):
+			}
+		}
+	}
+	return "", lastErr
+}
+
 // RequestVulDetailByID 根据CNVD漏洞ID请求漏洞信息，比如： CNVD-2021-67823
 func (x *CnvdSkills) RequestVulDetailByID(ctx context.Context, cnvd string, proxyProvider ProxyProvider) (*VulDetail, error) {
 	targetUrl := "https://www.cnvd.org.cn/flaw/show/" + cnvd
@@ -104,21 +161,16 @@ func (x *CnvdSkills) RequestVulDetailByID(ctx context.Context, cnvd string, prox
 }
 
 // RequestVulDetailByURL 根据详情页URL请求并解析漏洞信息。
-// ParseVulDetail 出错时返回 (nil, err) 而非 (detail, err)，避免调用方对 nil detail 解引用。
+// 内部走 requestWithRetry，支持重试与代理切换。
+// ParseVulDetail 出错时返回 (nil, err)。
 func (x *CnvdSkills) RequestVulDetailByURL(ctx context.Context, detailPageURL string, proxyProvider ProxyProvider) (*VulDetail, error) {
-	proxy, err := proxyProvider()
+	body, err := requestWithRetry(ctx, proxyProvider, nil, detailPageURL)
 	if err != nil {
 		return nil, err
 	}
-	response, err := jsl_sdk.NewJslClient(&jsl_sdk.ClientOptions{
-		Proxy: proxy,
-	}).Get(detailPageURL)
+	detail, err := x.ParseVulDetail(body)
 	if err != nil {
 		return nil, err
-	}
-	detail, err := x.ParseVulDetail(response.String())
-	if err != nil {
-		return nil, err // 关键：返回 nil detail，不再返回可能为 nil 的 detail
 	}
 	detail.URL = detailPageURL
 	return detail, nil

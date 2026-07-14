@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	jsl_sdk "github.com/JSREP/go-jsl-sdk"
 	"github.com/PuerkitoBio/goquery"
 	"github.com/golang-infrastructure/go-pointer"
 	"os"
@@ -153,20 +152,14 @@ func parentDir(path string) string {
 }
 
 // RequestVulListByOffset 请求指定偏移量的漏洞列表页并解析。
-// offset 从 0 开始，每页 10 条。
+// offset 从 0 开始，每页 10 条。内部走 requestWithRetry。
 func (x *CnvdSkills) RequestVulListByOffset(ctx context.Context, offset int, proxyProvider ProxyProvider) (*VulList, error) {
-	proxy, err := proxyProvider()
-	if err != nil {
-		return nil, err
-	}
 	targetUrl := fmt.Sprintf("https://www.cnvd.org.cn/flaw/list?numPerPage=10&offset=%d&max=10", offset)
-	response, err := jsl_sdk.NewJslClient(&jsl_sdk.ClientOptions{
-		Proxy: proxy,
-	}).Get(targetUrl)
+	body, err := requestWithRetry(ctx, proxyProvider, nil, targetUrl)
 	if err != nil {
 		return nil, err
 	}
-	return x.ParseVulList(response.String())
+	return x.ParseVulList(body)
 }
 
 // ParseVulList 解析漏洞列表页 HTML。

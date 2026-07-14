@@ -2,7 +2,6 @@ package cnvd_skills
 
 import (
 	"context"
-	jsl_sdk "github.com/JSREP/go-jsl-sdk"
 	"github.com/PuerkitoBio/goquery"
 	"strings"
 	"time"
@@ -39,19 +38,13 @@ func (x *CnvdSkills) RequestVulPatchByID(ctx context.Context, patchID string, pr
 	return x.RequestVulPatchByURL(ctx, targetUrl, proxyProvider)
 }
 
-// RequestVulPatchByURL 根据补丁详情页URL请求并解析。
+// RequestVulPatchByURL 根据补丁详情页URL请求并解析。内部走 requestWithRetry。
 func (x *CnvdSkills) RequestVulPatchByURL(ctx context.Context, patchPageURL string, proxyProvider ProxyProvider) (*VulPatch, error) {
-	proxy, err := proxyProvider()
+	body, err := requestWithRetry(ctx, proxyProvider, nil, patchPageURL)
 	if err != nil {
 		return nil, err
 	}
-	response, err := jsl_sdk.NewJslClient(&jsl_sdk.ClientOptions{
-		Proxy: proxy,
-	}).Get(patchPageURL)
-	if err != nil {
-		return nil, err
-	}
-	patch, err := x.ParseVulPatch(response.String())
+	patch, err := x.ParseVulPatch(body)
 	if err != nil {
 		return nil, err
 	}
