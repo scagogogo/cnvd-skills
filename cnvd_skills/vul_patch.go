@@ -5,6 +5,7 @@ import (
 	jsl_sdk "github.com/JSREP/go-jsl-sdk"
 	"github.com/PuerkitoBio/goquery"
 	"strings"
+	"time"
 )
 
 // VulPatch 厂商补丁详情
@@ -27,6 +28,9 @@ type VulPatch struct {
 
 	// 补丁发布时间
 	PublishTimeStr string
+
+	// 补丁发布时间（解析后的时间）
+	PublishTime *time.Time
 }
 
 // RequestVulPatchByID 根据补丁ID请求补丁详情，如 289241。
@@ -87,6 +91,7 @@ func (x *CnvdSkills) ParseVulPatch(responseString string) (*VulPatch, error) {
 			patch.Description = valueText
 		case "补丁发布时间":
 			patch.PublishTimeStr = valueText
+			patch.PublishTime = parseCnvdDate(valueText)
 		}
 	})
 

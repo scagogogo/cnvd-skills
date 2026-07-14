@@ -5,6 +5,7 @@ import (
 	jsl_sdk "github.com/JSREP/go-jsl-sdk"
 	"github.com/PuerkitoBio/goquery"
 	"strings"
+	"time"
 )
 
 // ------------------------------------------------ ---------------------------------------------------------------------
@@ -21,6 +22,9 @@ type VulDetail struct {
 
 	// 公开日期
 	PublishTimeStr string
+
+	// 公开日期（解析后的时间）
+	PublishTime *time.Time
 
 	// 危害级别
 	HazardLevel *HazardLevel
@@ -52,11 +56,20 @@ type VulDetail struct {
 	// 报送时间
 	PostTimeStr string
 
+	// 报送时间（解析后的时间）
+	PostTime *time.Time
+
 	// 收录时间
 	RecordTimeStr string
 
+	// 收录时间（解析后的时间）
+	RecordTime *time.Time
+
 	// 更新时间
 	UpdateTimeStr string
+
+	// 更新时间（解析后的时间）
+	UpdateTime *time.Time
 
 	// 漏洞附件
 	AttachFile string
@@ -136,6 +149,7 @@ func (x *CnvdSkills) ParseVulDetail(responseString string) (*VulDetail, error) {
 			detail.CVE = valueText
 		case "公开日期":
 			detail.PublishTimeStr = valueText
+			detail.PublishTime = parseCnvdDate(valueText)
 		case "危害级别":
 			detail.HazardLevel = parseHazardLevel(valueSelection, valueText)
 		case "影响产品":
@@ -162,10 +176,13 @@ func (x *CnvdSkills) ParseVulDetail(responseString string) (*VulDetail, error) {
 			detail.Validate = valueText
 		case "报送时间":
 			detail.PostTimeStr = valueText
+			detail.PostTime = parseCnvdDate(valueText)
 		case "收录时间":
 			detail.RecordTimeStr = valueText
+			detail.RecordTime = parseCnvdDate(valueText)
 		case "更新时间":
 			detail.UpdateTimeStr = valueText
+			detail.UpdateTime = parseCnvdDate(valueText)
 		case "漏洞附件":
 			attachHref, _ := valueSelection.Find("a").First().Attr("href")
 			if attachHref != "" {
@@ -205,6 +222,28 @@ func decodeHTMLEntities(htmlStr string) string {
 		return strings.TrimSpace(htmlStr)
 	}
 	return strings.TrimSpace(doc.Text())
+}
+
+// parseCnvdDate 把 CNVD 日期字符串解析为 *time.Time。
+// 依次尝试多种 layout，全部失败返回 nil（不报错，调用方用 Str 字段兜底）。
+// 支持的 layout 覆盖 CNVD 常见格式：纯日期、日期+时间、斜杠分隔。
+func parseCnvdDate(s string) *time.Time {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return nil
+	}
+	layouts := []string{
+		"2006-01-02 15:04:05",
+		"2006-01-02",
+		"2006/01/02 15:04:05",
+		"2006/01/02",
+	}
+	for _, layout := range layouts {
+		if t, err := time.ParseInLocation(layout, s, time.Local); err == nil {
+			return &t
+		}
+	}
+	return nil
 }
 
 // ------------------------------------------------ ---------------------------------------------------------------------
