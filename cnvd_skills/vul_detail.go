@@ -3,7 +3,6 @@ package cnvd_skills
 import (
 	"context"
 	"fmt"
-	jsl_sdk "github.com/JSREP/go-jsl-sdk"
 	"github.com/PuerkitoBio/goquery"
 	"strings"
 	"time"
@@ -98,10 +97,10 @@ type VendorPatch struct {
 
 // ------------------------------------------------ ---------------------------------------------------------------------
 
-// requestWithRetry 对单个 URL 执行 jsl_sdk.Get，失败时按 config 重试。
+// requestWithRetry 对单个 URL 执行带加速乐解密的 GET，失败时按 config 重试。
 // 代理类错误（isProxyInvalid）会重新向 proxyProvider 取新 IP 重试；
 // 非代理错误在 MaxRetry 次内重试，超出返回最后一次错误。
-// config 为 nil 时退化为不重试的单次请求。全程响应 ctx 取消。
+// config 为 nil 时退化为不重试的单次请求。全程响应 ctx 取消（含飞行中 HTTP）。
 func requestWithRetry(ctx context.Context, proxyProvider ProxyProvider, config *Config, targetUrl string) (string, error) {
 	var lastErr error
 	proxy, err := proxyProvider()
@@ -109,8 +108,10 @@ func requestWithRetry(ctx context.Context, proxyProvider ProxyProvider, config *
 		return "", err
 	}
 	maxRetry := 0
+	timeoutSec := 0
 	if config != nil {
 		maxRetry = config.MaxRetry
+		timeoutSec = config.RequestTimeoutSeconds
 	}
 	for attempt := 0; attempt <= maxRetry; attempt++ {
 		select {
@@ -119,15 +120,13 @@ func requestWithRetry(ctx context.Context, proxyProvider ProxyProvider, config *
 		default:
 		}
 
-		response, getErr := jsl_sdk.NewJslClient(&jsl_sdk.ClientOptions{
-			Proxy: proxy,
-		}).Get(targetUrl)
+		client := newJslClient(proxy, timeoutSec)
+		body, getErr := client.Get(ctx, targetUrl)
 		if getErr == nil {
-			return response.String(), nil
+			return body, nil
 		}
 		lastErr = getErr
 
-		// 代理错误：换新 IP，不计入普通重试次数衰减
 		if isProxyInvalid(getErr) {
 			if config != nil && config.ProxyRetryIntervalSeconds > 0 {
 				select {
@@ -139,11 +138,9 @@ func requestWithRetry(ctx context.Context, proxyProvider ProxyProvider, config *
 			if newProxy, pErr := proxyProvider(); pErr == nil {
 				proxy = newProxy
 			}
-			// 取不到新代理：沿用旧错误继续重试
 			continue
 		}
 
-		// 非代理错误：等待后重试
 		if config != nil && config.ProxyRetryIntervalSeconds > 0 {
 			select {
 			case <-ctx.Done():

@@ -1,7 +1,3 @@
-github.com/JSREP/go-jsl-sdk v0.0.0-20230508084029-302a08e262eb h1:PuGbjapSSk4EdK1YmJcVzaW0j8iJgRvYMnnbkCz2Dt0=
-github.com/JSREP/go-jsl-sdk v0.0.0-20230508084029-302a08e262eb/go.mod h1:fk520iCwhRj42svurWsLXgIKxxhHh6p4B89qt9HRmh8=
-github.com/JSREP/go-jsl-sdk v0.0.0-20230508093340-42e51dd47227 h1:P6kcDTzfqY9tCBIdM0NTyKwt1vlDDtbjabhp24IZBu8=
-github.com/JSREP/go-jsl-sdk v0.0.0-20230508093340-42e51dd47227/go.mod h1:fk520iCwhRj42svurWsLXgIKxxhHh6p4B89qt9HRmh8=
 github.com/PuerkitoBio/goquery v1.8.1 h1:uQxhNlArOIdbrH1tr0UXwdVFgDcZDrZVdcpygAcwmWM=
 github.com/PuerkitoBio/goquery v1.8.1/go.mod h1:Q8ICL1kNUJ2sXGoAhPGUdYDJvgQgHzJsnnd3H7Ho5jQ=
 github.com/andybalholm/cascadia v1.3.1/go.mod h1:R4bJ1UQfqADjvDa4P6HZHLh/3OxWWEqc0Sk8XGwHqvA=
@@ -10,8 +6,6 @@ github.com/andybalholm/cascadia v1.3.2/go.mod h1:7gtRlve5FxPPgIgX36uWBX58OdBsSS6
 github.com/chzyer/logex v1.2.0/go.mod h1:9+9sk7u7pGNWYMkh0hdiL++6OeibzJccyQU4p4MedaY=
 github.com/chzyer/readline v1.5.0/go.mod h1:x22KAscuvRqlLoK9CsoYsmxoXZMMFVyOl86cAH8qUic=
 github.com/chzyer/test v0.0.0-20210722231415-061457976a23/go.mod h1:Q3SI9o4m/ZMnBNeIyt5eFwwo7qiLfzFZmjNmxjkiQlU=
-github.com/crawler-go-go-go/go-requests v0.0.0-20230508065926-fa04483880bf h1:75wo87+uDgvsfw4xD3jTwbE+1HmoYLnOid3Z2iImfnk=
-github.com/crawler-go-go-go/go-requests v0.0.0-20230508065926-fa04483880bf/go.mod h1:DDPj4Q6CnYaSuw3r/5gOEUSConLaPTsuq4XTME7Dtls=
 github.com/crawler-go-go-go/go-requests v0.0.0-20230509025153-d3fa20897bd3 h1:ooqxzQF82I25/iHzzAnIgbtM1smbfpaxSpdWQfaRhBo=
 github.com/crawler-go-go-go/go-requests v0.0.0-20230509025153-d3fa20897bd3/go.mod h1:DDPj4Q6CnYaSuw3r/5gOEUSConLaPTsuq4XTME7Dtls=
 github.com/creack/pty v1.1.9/go.mod h1:oKZEueFk5CKHvIhNR5MUki03XCEU+Q6VDXinZuGJ33E=
