@@ -8,11 +8,13 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"github.com/dop251/goja"
-	"github.com/go-resty/resty/v2"
+	"net/url"
 	"regexp"
 	"strings"
 	"time"
+
+	"github.com/dop251/goja"
+	"github.com/go-resty/resty/v2"
 )
 
 // jslClient 破解加速乐（JSL）三层加密的 HTTP 客户端。
@@ -22,9 +24,10 @@ type jslClient struct {
 	cookieMap map[string]string
 	proxy     string
 	timeout   time.Duration
+	solver    CaptchaSolver
 }
 
-func newJslClient(proxy string, timeoutSeconds int) *jslClient {
+func newJslClient(proxy string, timeoutSeconds int, solver CaptchaSolver) *jslClient {
 	timeout := time.Duration(0)
 	if timeoutSeconds > 0 {
 		timeout = time.Duration(timeoutSeconds) * time.Second
@@ -33,42 +36,154 @@ func newJslClient(proxy string, timeoutSeconds int) *jslClient {
 		cookieMap: make(map[string]string),
 		proxy:     proxy,
 		timeout:   timeout,
+		solver:    solver,
 	}
 }
 
 // Get 对被加速乐保护的目标 URL 发起 GET，自动完成三层解密，返回最终页面 HTML。
+// 若第三层返回验证码挑战页且配置了 solver，则自动取图→识别→提交→刷新拿真实页。
 func (x *jslClient) Get(ctx context.Context, targetUrl string) (string, error) {
-	// 第一层：解出初始 cookie
 	resp, err := x.plainRequest(ctx, targetUrl)
 	if err != nil {
 		return "", err
 	}
 	if !x.isFirstLayer(resp) {
-		// 未加密，直接返回
-		return resp, nil
+		return x.handlePossibleCaptcha(ctx, targetUrl, resp)
 	}
 	if err := x.processFirstLayer(resp); err != nil {
 		return "", err
 	}
 
-	// 第二层：破解 go({...}) 参数算出新 cookie
 	resp, err = x.plainRequest(ctx, targetUrl)
 	if err != nil {
 		return "", err
 	}
 	if !x.isSecondLayer(resp) {
-		return resp, nil
+		return x.handlePossibleCaptcha(ctx, targetUrl, resp)
 	}
 	if err := x.processSecondLayer(ctx, resp); err != nil {
 		return "", err
 	}
 
-	// 第三层：带 cookie 取真实页
 	resp, err = x.plainRequest(ctx, targetUrl)
 	if err != nil {
 		return "", err
 	}
-	return resp, nil
+	return x.handlePossibleCaptcha(ctx, targetUrl, resp)
+}
+
+// handlePossibleCaptcha 检测响应是否为验证码挑战页：
+// 若是且配置了 solver，走完整验证码流程后重新 GET 目标页返回真实内容；
+// 若是但未配置 solver，返回 ErrCaptchaRequired；
+// 若不是验证码页，直接返回原响应。
+func (x *jslClient) handlePossibleCaptcha(ctx context.Context, targetUrl, resp string) (string, error) {
+	if !isCaptchaChallenge(resp) {
+		return resp, nil
+	}
+	if x.solver == nil {
+		return "", ErrCaptchaRequired
+	}
+	if err := x.processCaptcha(ctx, targetUrl); err != nil {
+		return "", err
+	}
+	// 放行后重新请求目标页拿真实内容
+	return x.plainRequest(ctx, targetUrl)
+}
+
+// processCaptcha 完整执行验证码挑战：取图→识别→提交，最多重试 3 次。
+func (x *jslClient) processCaptcha(ctx context.Context, targetUrl string) error {
+	const maxAttempts = 3
+	for attempt := 0; attempt < maxAttempts; attempt++ {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+		}
+		imageBase64, sec, err := x.fetchCaptchaImage(ctx, targetUrl)
+		if err != nil {
+			continue
+		}
+		ans, err := x.solver.Solve(ctx, imageBase64)
+		if err != nil {
+			continue
+		}
+		if err := x.submitCaptchaAnswer(ctx, targetUrl, ans, sec); err == nil {
+			return nil
+		}
+	}
+	return ErrCaptchaSolveFailed
+}
+
+// fetchCaptchaImage GET 验证码图端点，返回 base64 图片与 sec token。
+func (x *jslClient) fetchCaptchaImage(ctx context.Context, targetUrl string) (imageBase64, sec string, err error) {
+	capURL := "https://www.cnvd.org.cn/cdn-cgi/captcha/v2/captcha/image?c=1&s=cnvdskills"
+	resp, err := x.captchaRequest(ctx, capURL, targetUrl, "")
+	if err != nil {
+		return "", "", err
+	}
+	var result struct {
+		Image string `json:"image"`
+		Sec   string `json:"sec"`
+		Msg   string `json:"msg"`
+	}
+	if e := json.Unmarshal([]byte(resp), &result); e != nil || result.Image == "" {
+		return "", "", fmt.Errorf("parse captcha image failed: %s", resp)
+	}
+	return result.Image, result.Sec, nil
+}
+
+// submitCaptchaAnswer POST 答案，成功（HTTP 200）返回 nil。
+func (x *jslClient) submitCaptchaAnswer(ctx context.Context, targetUrl, ans, sec string) error {
+	body := "ans=" + url.QueryEscape(ans) + "&sec=" + url.QueryEscape(sec)
+	_, err := x.captchaRequest(ctx, "https://www.cnvd.org.cn/cdn-cgi/captcha/v2/captcha/image", targetUrl, body)
+	return err
+}
+
+// captchaRequest 对验证码端点发请求（GET 或 POST），共用 jsl 会话 cookie。
+// postBody 非空时为 POST application/x-www-form-urlencoded。
+// 端点返回非 200 视为失败。
+func (x *jslClient) captchaRequest(ctx context.Context, reqURL, referer, postBody string) (string, error) {
+	client := resty.New()
+	if x.proxy != "" {
+		client.SetProxy(x.proxy)
+	}
+	if x.timeout > 0 {
+		client.SetTimeout(x.timeout)
+	}
+	req := client.R().
+		SetContext(ctx).
+		SetHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/112.0.0.0 Safari/537.36").
+		SetHeader("Accept", "application/json, text/javascript, */*; q=0.01").
+		SetHeader("Accept-Language", "zh-CN,zh;q=0.9").
+		SetHeader("Referer", referer).
+		SetHeader("X-Requested-With", "XMLHttpRequest")
+	if cv := x.cookieHeaderValue(); cv != "" {
+		req.SetHeader("Cookie", cv)
+	}
+	var resp *resty.Response
+	var err error
+	if postBody != "" {
+		req.SetHeader("Content-Type", "application/x-www-form-urlencoded")
+		req.SetBody(postBody)
+		resp, err = req.Post(reqURL)
+	} else {
+		resp, err = req.Get(reqURL)
+	}
+	if err != nil {
+		return "", err
+	}
+	for _, c := range resp.Cookies() {
+		x.cookieMap[c.Name] = c.Value
+	}
+	if resp.StatusCode() != 200 {
+		return "", fmt.Errorf("captcha endpoint returned %d", resp.StatusCode())
+	}
+	return resp.String(), nil
+}
+
+// isCaptchaChallenge 判断响应是否为加速乐验证码挑战页。
+func isCaptchaChallenge(body string) bool {
+	return strings.Contains(body, "本站开启了验证码保护") || strings.Contains(body, "/cdn-cgi/js/captcha.js")
 }
 
 // plainRequest 发一次带当前 cookie 的普通 GET，返回响应体字符串。

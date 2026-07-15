@@ -26,6 +26,11 @@ type Config struct {
 
 	// 是否对输出文件按 CNVD-ID 去重，默认 true
 	EnableDedup bool
+
+	// 验证码识别器。CNVD 触发图片验证码挑战时用于自动通过：
+	// 配置后库自动取图→识别→提交→放行刷新；不配置则遇验证码返回 ErrCaptchaRequired。
+	// 内置实现见 captcha.go（InteractiveCaptchaSolver / NoopCaptchaSolver）。
+	CaptchaSolver CaptchaSolver
 }
 
 // DefaultConfig 返回默认配置。

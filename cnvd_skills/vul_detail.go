@@ -2,6 +2,7 @@ package cnvd_skills
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"github.com/PuerkitoBio/goquery"
 	"strings"
@@ -109,9 +110,11 @@ func requestWithRetry(ctx context.Context, proxyProvider ProxyProvider, config *
 	}
 	maxRetry := 0
 	timeoutSec := 0
+	var solver CaptchaSolver
 	if config != nil {
 		maxRetry = config.MaxRetry
 		timeoutSec = config.RequestTimeoutSeconds
+		solver = config.CaptchaSolver
 	}
 	for attempt := 0; attempt <= maxRetry; attempt++ {
 		select {
@@ -120,7 +123,7 @@ func requestWithRetry(ctx context.Context, proxyProvider ProxyProvider, config *
 		default:
 		}
 
-		client := newJslClient(proxy, timeoutSec)
+		client := newJslClient(proxy, timeoutSec, solver)
 		body, getErr := client.Get(ctx, targetUrl)
 		if getErr == nil {
 			return body, nil
@@ -139,6 +142,11 @@ func requestWithRetry(ctx context.Context, proxyProvider ProxyProvider, config *
 				proxy = newProxy
 			}
 			continue
+		}
+
+		// 验证码类错误不上抛重试（需调用方配识别器），直接返回
+		if errors.Is(getErr, ErrCaptchaRequired) {
+			return "", getErr
 		}
 
 		if config != nil && config.ProxyRetryIntervalSeconds > 0 {
