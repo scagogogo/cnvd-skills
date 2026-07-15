@@ -166,11 +166,24 @@ func (x *CnvdSkills) RequestVulDetailByID(ctx context.Context, cnvd string, prox
 	return x.RequestVulDetailByURL(ctx, targetUrl, proxyProvider)
 }
 
+// RequestVulDetailByIDWithConfig 同 RequestVulDetailByID，但接收 config，
+// 可传入 CaptchaSolver 等配置以通过加速乐验证码挑战。
+func (x *CnvdSkills) RequestVulDetailByIDWithConfig(ctx context.Context, cnvd string, proxyProvider ProxyProvider, config *Config) (*VulDetail, error) {
+	targetUrl := "https://www.cnvd.org.cn/flaw/show/" + cnvd
+	return x.RequestVulDetailByURLWithConfig(ctx, targetUrl, proxyProvider, config)
+}
+
 // RequestVulDetailByURL 根据详情页URL请求并解析漏洞信息。
 // 内部走 requestWithRetry，支持重试与代理切换。
 // ParseVulDetail 出错时返回 (nil, err)。
 func (x *CnvdSkills) RequestVulDetailByURL(ctx context.Context, detailPageURL string, proxyProvider ProxyProvider) (*VulDetail, error) {
-	body, err := requestWithRetry(ctx, proxyProvider, nil, detailPageURL)
+	return x.RequestVulDetailByURLWithConfig(ctx, detailPageURL, proxyProvider, nil)
+}
+
+// RequestVulDetailByURLWithConfig 同 RequestVulDetailByURL，但接收 config，
+// 可传入 CaptchaSolver 以通过加速乐验证码挑战。
+func (x *CnvdSkills) RequestVulDetailByURLWithConfig(ctx context.Context, detailPageURL string, proxyProvider ProxyProvider, config *Config) (*VulDetail, error) {
+	body, err := requestWithRetry(ctx, proxyProvider, config, detailPageURL)
 	if err != nil {
 		return nil, err
 	}
@@ -186,7 +199,12 @@ func (x *CnvdSkills) RequestVulDetailByURL(ctx context.Context, detailPageURL st
 // 与 VulList 主流程的落盘行为解耦，供调用方按需取单条数据。
 // 失败时返回 (nil, err)。CNVD 为空（解析异常）返回 error 提示。
 func (x *CnvdSkills) FetchVulDetail(ctx context.Context, cnvd string, proxyProvider ProxyProvider) (*VulDetail, error) {
-	detail, err := x.RequestVulDetailByID(ctx, cnvd, proxyProvider)
+	return x.FetchVulDetailWithConfig(ctx, cnvd, proxyProvider, nil)
+}
+
+// FetchVulDetailWithConfig 同 FetchVulDetail，但接收 config，可传入 CaptchaSolver。
+func (x *CnvdSkills) FetchVulDetailWithConfig(ctx context.Context, cnvd string, proxyProvider ProxyProvider, config *Config) (*VulDetail, error) {
+	detail, err := x.RequestVulDetailByIDWithConfig(ctx, cnvd, proxyProvider, config)
 	if err != nil {
 		return nil, err
 	}

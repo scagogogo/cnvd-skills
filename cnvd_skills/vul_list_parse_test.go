@@ -41,3 +41,20 @@ func TestCnvdSkills_ParseVulList_NoPagination(t *testing.T) {
 	assert.Len(t, list.VulListItems, 1)
 	assert.Nil(t, list.TotalPage)
 }
+
+// TestCnvdSkills_ParseVulList_StepPaging 真实 CNVD 列表页用 a.step 分页
+// （无 totalPage class），应从 a.step 文本取最大值作为总页数。
+func TestCnvdSkills_ParseVulList_StepPaging(t *testing.T) {
+	body, err := os.ReadFile("testdata/vul_list_with_step_paging.html")
+	assert.Nil(t, err)
+
+	list, err := NewCnvdSkills().ParseVulList(string(body))
+	assert.Nil(t, err)
+	assert.NotNil(t, list.Page)
+	assert.Equal(t, 1, *list.Page)
+	// 应从 a.step 取最大值 1000 作为总页数
+	assert.NotNil(t, list.TotalPage)
+	assert.Equal(t, 1000, *list.TotalPage)
+	assert.Len(t, list.VulListItems, 2)
+	assert.Equal(t, "/flaw/show/CNVD-2024-10001", list.VulListItems[0].Href)
+}

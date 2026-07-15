@@ -90,9 +90,10 @@ func (x *jslClient) handlePossibleCaptcha(ctx context.Context, targetUrl, resp s
 	return x.plainRequest(ctx, targetUrl)
 }
 
-// processCaptcha 完整执行验证码挑战：取图→识别→提交，最多重试 3 次。
+// processCaptcha 完整执行验证码挑战：取图→识别→提交，最多重试 6 次。
+// 重试是因为验证码图为中文词组、ddddocr 识别有概率性，多次重试可显著提升通过率。
 func (x *jslClient) processCaptcha(ctx context.Context, targetUrl string) error {
-	const maxAttempts = 3
+	const maxAttempts = 6
 	for attempt := 0; attempt < maxAttempts; attempt++ {
 		select {
 		case <-ctx.Done():

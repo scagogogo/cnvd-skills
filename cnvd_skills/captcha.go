@@ -1,12 +1,15 @@
 package cnvd_skills
 
 import (
+	"bytes"
 	"context"
 	"encoding/base64"
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"strings"
 	"time"
 )
 
@@ -103,4 +106,35 @@ type StaticCaptchaSolver struct {
 
 func (s StaticCaptchaSolver) Solve(ctx context.Context, imageBase64 string) (string, error) {
 	return s.Answer, s.Err
+}
+
+// CommandCaptchaSolver 通过调用外部命令识别验证码：把 base64 图片通过 stdin 传入命令，
+// 从 stdout 读取答案。适合把 Python 的 ddddocr 等专用 OCR 包装成命令供 Go 调用，
+// 保持本库为纯 Go，识别能力按需接入。命令退出码非 0 视为识别失败。
+//
+// 用法示例（搭配 scripts/ddddocr_solver.py）：
+//
+//	solver := CommandCaptchaSolver{Command: "python3", Args: []string{"scripts/ddddocr_solver.py"}}
+type CommandCaptchaSolver struct {
+	// Command 可执行命令名，如 "python3"
+	Command string
+	// Args 命令参数
+	Args []string
+}
+
+// Solve 实现 CaptchaSolver：起子进程，stdin 写 base64，stdout 读答案。
+func (s CommandCaptchaSolver) Solve(ctx context.Context, imageBase64 string) (string, error) {
+	cmd := exec.CommandContext(ctx, s.Command, s.Args...)
+	cmd.Stdin = strings.NewReader(imageBase64)
+	var out, errBuf bytes.Buffer
+	cmd.Stdout = &out
+	cmd.Stderr = &errBuf
+	if err := cmd.Run(); err != nil {
+		return "", fmt.Errorf("captcha command failed: %w; stderr: %s", err, strings.TrimSpace(errBuf.String()))
+	}
+	ans := strings.TrimSpace(out.String())
+	if ans == "" {
+		return "", fmt.Errorf("captcha command returned empty answer; stderr: %s", strings.TrimSpace(errBuf.String()))
+	}
+	return ans, nil
 }

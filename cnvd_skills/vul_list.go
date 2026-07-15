@@ -204,8 +204,14 @@ func extractCnvdIDFromHref(href string) string {
 // RequestVulListByOffset 请求指定偏移量的漏洞列表页并解析。
 // offset 从 0 开始，每页 10 条。内部走 requestWithRetry。
 func (x *CnvdSkills) RequestVulListByOffset(ctx context.Context, offset int, proxyProvider ProxyProvider) (*VulList, error) {
+	return x.RequestVulListByOffsetWithConfig(ctx, offset, proxyProvider, nil)
+}
+
+// RequestVulListByOffsetWithConfig 同 RequestVulListByOffset，但接收 config，
+// 可传入 CaptchaSolver 以通过加速乐验证码挑战。
+func (x *CnvdSkills) RequestVulListByOffsetWithConfig(ctx context.Context, offset int, proxyProvider ProxyProvider, config *Config) (*VulList, error) {
 	targetUrl := fmt.Sprintf("https://www.cnvd.org.cn/flaw/list?numPerPage=10&offset=%d&max=10", offset)
-	body, err := requestWithRetry(ctx, proxyProvider, nil, targetUrl)
+	body, err := requestWithRetry(ctx, proxyProvider, config, targetUrl)
 	if err != nil {
 		return nil, err
 	}
@@ -229,15 +235,27 @@ func (x *CnvdSkills) ParseVulList(responseBody string) (*VulList, error) {
 		}
 	}
 
-	// 总页数
+	// 总页数：优先取 span.totalPage；若无则从分页链接 a.step 文本取最大值
+	// （CNVD 真实列表页分页结构为 span.currentStep + a.step，最后一个 a.step 即总页数）。
 	totalPageStr := strings.TrimSpace(document.Find("span.totalPage").Text())
 	if totalPageStr != "" {
 		if totalPage, err := strconv.Atoi(totalPageStr); err == nil {
 			vulList.TotalPage = pointer.ToPointer(totalPage)
 		}
 	}
+	if vulList.TotalPage == nil {
+		maxPage := 0
+		document.Find("a.step").Each(func(i int, s *goquery.Selection) {
+			if n, err := strconv.Atoi(strings.TrimSpace(s.Text())); err == nil && n > maxPage {
+				maxPage = n
+			}
+		})
+		if maxPage > 0 {
+			vulList.TotalPage = pointer.ToPointer(maxPage)
+		}
+	}
 
-	// 总记录数
+	// 总记录数（部分页面有，无则留空）
 	totalRecordStr := strings.TrimSpace(document.Find("span.totalRecord").Text())
 	if totalRecordStr != "" {
 		if totalRecord, err := strconv.Atoi(totalRecordStr); err == nil {

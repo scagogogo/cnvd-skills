@@ -26,17 +26,26 @@ func TestCnvdSkills_RequestVulDetail(t *testing.T) {
 }
 
 // TestRequestVulDetail_Real 真实集成测试：从 CNVD 抓取 CNVD-2021-67823 并校验数据
-// 格式与有效性。依赖外网与 CNVD 可达。-short 跳过。
+// 格式与有效性。CNVD 触发加速乐图片验证码挑战时用 CommandCaptchaSolver 调
+// scripts/ddddocr_solver.py（ddddocr）自动识别。-short 跳过。
 func TestRequestVulDetail_Real(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping network-dependent integration test in short mode")
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
 	defer cancel()
 
-	detail, err := NewCnvdSkills().RequestVulDetailByID(ctx, "CNVD-2021-67823", PinYiProxyProvider)
+	cfg := &Config{
+		MaxRetry:              3,
+		RequestTimeoutSeconds: 30,
+		CaptchaSolver: CommandCaptchaSolver{
+			Command: "python3",
+			Args:    []string{"../scripts/ddddocr_solver.py"},
+		},
+	}
+	detail, err := NewCnvdSkills().RequestVulDetailByIDWithConfig(ctx, "CNVD-2021-67823", FixedProxyProvider(""), cfg)
 	if err != nil {
-		t.Fatalf("真实抓取失败（检查网络/代理/CNVD 可用性）: %v", err)
+		t.Fatalf("真实抓取失败（检查网络/CNVD/ddddocr）: %v", err)
 	}
 	assert.NotNil(t, detail)
 
@@ -57,15 +66,23 @@ func TestRequestVulDetail_Real(t *testing.T) {
 	assert.Equal(t, "https://www.cnvd.org.cn/flaw/show/CNVD-2021-67823", detail.URL)
 }
 
-// TestFetchVulDetail_Real 单条 API 真实抓取
+// TestFetchVulDetail_Real 单条 API 真实抓取（带验证码识别器）
 func TestFetchVulDetail_Real(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping network-dependent integration test in short mode")
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
 	defer cancel()
 
-	detail, err := NewCnvdSkills().FetchVulDetail(ctx, "CNVD-2021-67823", PinYiProxyProvider)
+	cfg := &Config{
+		MaxRetry:              3,
+		RequestTimeoutSeconds: 30,
+		CaptchaSolver: CommandCaptchaSolver{
+			Command: "python3",
+			Args:    []string{"../scripts/ddddocr_solver.py"},
+		},
+	}
+	detail, err := NewCnvdSkills().FetchVulDetailWithConfig(ctx, "CNVD-2021-67823", FixedProxyProvider(""), cfg)
 	if err != nil {
 		t.Fatalf("FetchVulDetail 真实抓取失败: %v", err)
 	}
