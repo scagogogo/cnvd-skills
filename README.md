@@ -90,6 +90,20 @@ pip3 install ddddocr  # 受 PEP668 限制的系统加 --break-system-packages
 
 未配置 `CaptchaSolver` 时遇验证码返回 `ErrCaptchaRequired`，调用方可用 `errors.Is(err, cnvd_skills.ErrCaptchaRequired)` 判断。
 
+### 独立使用加速乐客户端
+
+`JslClient` 是导出的公开模块，可脱离 CNVD 业务直接访问任意被加速乐保护的站点：
+
+```go
+client := cnvd_skills.NewJslClient("", 30, cnvd_skills.CommandCaptchaSolver{
+    Command: "python3",
+    Args:    []string{"scripts/ddddocr_solver.py"},
+})
+html, err := client.Get(context.Background(), "https://www.cnvd.org.cn/flaw/show/CNVD-2021-67823")
+```
+
+`CnvdSkills` 也持有一个默认 `JslClient` 实例（直连、不限时、不配识别器），可通过 `JslClient()` 获取。带 `Config` 的请求会在 `requestWithRetry` 内按请求派生独立客户端，并发安全。
+
 ## 配置
 
 `Config` 字段（`DefaultConfig()` 提供默认值）：
@@ -136,7 +150,7 @@ go test ./cnvd_skills/ -run "_Real" -v -timeout 400s
 ## 设计要点
 
 - **解析与请求分离**：`ParseXxx` 接受纯字符串入参、返回结构体与 error，可用本地 HTML fixture 离线测试，无需网络与代理。
-- **自研加速乐客户端**：`cnvd_jsl_client.go` 复刻并修复了原 jsl_sdk 的三层解密（first 层正则兼容 `; Max-age` 大写带空格格式），接入 context、超时、代理与验证码挑战流程，移除了对私有 jsl_sdk 的依赖。
+- **自研加速乐客户端**：`jsl_client.go` 复刻并修复了原 jsl_sdk 的三层解密（first 层正则兼容 `; Max-age` 大写带空格格式），接入 context、超时、代理与验证码挑战流程，移除了对私有 jsl_sdk 的依赖。已导出为公开模块 `JslClient`，`CnvdSkills` 持有默认实例，三处请求统一走 `requestWithRetry` 方法派生的独立客户端（并发安全）。
 - **验证码可插拔**：识别环节抽成 `CaptchaSolver` 接口，库负责取图/提交/放行刷新/重试，调用方注入"图→答案"实现。
 - **请求层重试**：`requestWithRetry` 统一封装，代理类错误自动换 IP、非代理错误按 `MaxRetry` 重试，验证码类错误（`ErrCaptchaRequired`）不重试直接上抛，全程支持 `context.Context` 取消。
 - **去重**：`EnableDedup` 开启时，写文件前读取已抓 CNVD 集合，跳过重复条目，支持断点续抓。
