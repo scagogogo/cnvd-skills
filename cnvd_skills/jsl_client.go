@@ -17,22 +17,29 @@ import (
 	"github.com/go-resty/resty/v2"
 )
 
-// jslClient 破解加速乐（JSL）三层加密的 HTTP 客户端。
-// 复刻 github.com/JSREP/go-jsl-sdk 流程，修复其 first 层 cookie 正则不兼容
-// CNVD 当前 `; Max-age`（大写带空格）格式的问题，并接入 context 与超时。
-type jslClient struct {
+// JslClient 破解加速乐（JSL）三层加密的 HTTP 客户端，可访问任意被加速乐保护的站点。
+//
+// 自动完成三层解密（第一层 document.cookie 混淆 JS 求值 + 兼容正则提取 cookie；
+// 第二层 go({...}) 参数 + md5/sha1/sha256 暴力匹配算 __jsl_clearance_s；第三层带 cookie GET），
+// 并在第三层返回验证码挑战页时自动取图→调用 CaptchaSolver→提交答案→放行刷新拿真实页。
+//
+// 字段私有，外部通过 NewJslClient 构造、Get 发起请求。一个实例非并发安全
+// （cookieMap 会随请求累积），并发场景请为每个请求构造独立实例。
+type JslClient struct {
 	cookieMap map[string]string
 	proxy     string
 	timeout   time.Duration
 	solver    CaptchaSolver
 }
 
-func newJslClient(proxy string, timeoutSeconds int, solver CaptchaSolver) *jslClient {
+// NewJslClient 构造一个加速乐客户端。proxy 为空串表示直连；
+// timeoutSeconds 为 0 表示不限时；solver 为 nil 时遇验证码返回 ErrCaptchaRequired。
+func NewJslClient(proxy string, timeoutSeconds int, solver CaptchaSolver) *JslClient {
 	timeout := time.Duration(0)
 	if timeoutSeconds > 0 {
 		timeout = time.Duration(timeoutSeconds) * time.Second
 	}
-	return &jslClient{
+	return &JslClient{
 		cookieMap: make(map[string]string),
 		proxy:     proxy,
 		timeout:   timeout,
@@ -40,9 +47,15 @@ func newJslClient(proxy string, timeoutSeconds int, solver CaptchaSolver) *jslCl
 	}
 }
 
+// Proxy 返回当前客户端配置的代理地址（只读）。
+func (x *JslClient) Proxy() string { return x.proxy }
+
+// HasSolver 返回是否配置了验证码识别器。
+func (x *JslClient) HasSolver() bool { return x.solver != nil }
+
 // Get 对被加速乐保护的目标 URL 发起 GET，自动完成三层解密，返回最终页面 HTML。
 // 若第三层返回验证码挑战页且配置了 solver，则自动取图→识别→提交→刷新拿真实页。
-func (x *jslClient) Get(ctx context.Context, targetUrl string) (string, error) {
+func (x *JslClient) Get(ctx context.Context, targetUrl string) (string, error) {
 	resp, err := x.plainRequest(ctx, targetUrl)
 	if err != nil {
 		return "", err
@@ -76,7 +89,7 @@ func (x *jslClient) Get(ctx context.Context, targetUrl string) (string, error) {
 // 若是且配置了 solver，走完整验证码流程后重新 GET 目标页返回真实内容；
 // 若是但未配置 solver，返回 ErrCaptchaRequired；
 // 若不是验证码页，直接返回原响应。
-func (x *jslClient) handlePossibleCaptcha(ctx context.Context, targetUrl, resp string) (string, error) {
+func (x *JslClient) handlePossibleCaptcha(ctx context.Context, targetUrl, resp string) (string, error) {
 	if !isCaptchaChallenge(resp) {
 		return resp, nil
 	}
@@ -86,13 +99,12 @@ func (x *jslClient) handlePossibleCaptcha(ctx context.Context, targetUrl, resp s
 	if err := x.processCaptcha(ctx, targetUrl); err != nil {
 		return "", err
 	}
-	// 放行后重新请求目标页拿真实内容
 	return x.plainRequest(ctx, targetUrl)
 }
 
 // processCaptcha 完整执行验证码挑战：取图→识别→提交，最多重试 6 次。
 // 重试是因为验证码图为中文词组、ddddocr 识别有概率性，多次重试可显著提升通过率。
-func (x *jslClient) processCaptcha(ctx context.Context, targetUrl string) error {
+func (x *JslClient) processCaptcha(ctx context.Context, targetUrl string) error {
 	const maxAttempts = 6
 	for attempt := 0; attempt < maxAttempts; attempt++ {
 		select {
@@ -116,7 +128,7 @@ func (x *jslClient) processCaptcha(ctx context.Context, targetUrl string) error 
 }
 
 // fetchCaptchaImage GET 验证码图端点，返回 base64 图片与 sec token。
-func (x *jslClient) fetchCaptchaImage(ctx context.Context, targetUrl string) (imageBase64, sec string, err error) {
+func (x *JslClient) fetchCaptchaImage(ctx context.Context, targetUrl string) (imageBase64, sec string, err error) {
 	capURL := "https://www.cnvd.org.cn/cdn-cgi/captcha/v2/captcha/image?c=1&s=cnvdskills"
 	resp, err := x.captchaRequest(ctx, capURL, targetUrl, "")
 	if err != nil {
@@ -134,7 +146,7 @@ func (x *jslClient) fetchCaptchaImage(ctx context.Context, targetUrl string) (im
 }
 
 // submitCaptchaAnswer POST 答案，成功（HTTP 200）返回 nil。
-func (x *jslClient) submitCaptchaAnswer(ctx context.Context, targetUrl, ans, sec string) error {
+func (x *JslClient) submitCaptchaAnswer(ctx context.Context, targetUrl, ans, sec string) error {
 	body := "ans=" + url.QueryEscape(ans) + "&sec=" + url.QueryEscape(sec)
 	_, err := x.captchaRequest(ctx, "https://www.cnvd.org.cn/cdn-cgi/captcha/v2/captcha/image", targetUrl, body)
 	return err
@@ -143,7 +155,7 @@ func (x *jslClient) submitCaptchaAnswer(ctx context.Context, targetUrl, ans, sec
 // captchaRequest 对验证码端点发请求（GET 或 POST），共用 jsl 会话 cookie。
 // postBody 非空时为 POST application/x-www-form-urlencoded。
 // 端点返回非 200 视为失败。
-func (x *jslClient) captchaRequest(ctx context.Context, reqURL, referer, postBody string) (string, error) {
+func (x *JslClient) captchaRequest(ctx context.Context, reqURL, referer, postBody string) (string, error) {
 	client := resty.New()
 	if x.proxy != "" {
 		client.SetProxy(x.proxy)
@@ -188,7 +200,7 @@ func isCaptchaChallenge(body string) bool {
 }
 
 // plainRequest 发一次带当前 cookie 的普通 GET，返回响应体字符串。
-func (x *jslClient) plainRequest(ctx context.Context, targetUrl string) (string, error) {
+func (x *JslClient) plainRequest(ctx context.Context, targetUrl string) (string, error) {
 	client := resty.New()
 	if x.proxy != "" {
 		client.SetProxy(x.proxy)
@@ -222,7 +234,7 @@ func (x *jslClient) plainRequest(ctx context.Context, targetUrl string) (string,
 // processFirstLayer 从第一层加密响应解出初始 cookie。
 // 用 goja 求值 document.cookie=XXX 的 JS 得到 name=value;Max-age=... 字符串，
 // 再用兼容正则提取（修复库的正则不兼容 ; Max-age 大写带空格）。
-func (x *jslClient) processFirstLayer(responseBody string) error {
+func (x *JslClient) processFirstLayer(responseBody string) error {
 	find := regexp.MustCompile(`document\.cookie=([\s\S]+?)location\.href=`).FindStringSubmatch(responseBody)
 	if len(find) != 2 {
 		return fmt.Errorf("can not parse first layer cookie from response")
@@ -245,13 +257,13 @@ func (x *jslClient) processFirstLayer(responseBody string) error {
 	return nil
 }
 
-func (x *jslClient) isFirstLayer(body string) bool {
+func (x *JslClient) isFirstLayer(body string) bool {
 	return strings.HasPrefix(body, "<script>document.cookie=") &&
 		strings.HasSuffix(body, ";location.href=location.pathname+location.search</script>")
 }
 
 // processSecondLayer 破解第二层 go({...}) 参数，算出真正的 __jsl_clearance_s cookie。
-func (x *jslClient) processSecondLayer(ctx context.Context, responseBody string) error {
+func (x *JslClient) processSecondLayer(ctx context.Context, responseBody string) error {
 	submatch := regexp.MustCompile(`go\(({.+?})\)`).FindStringSubmatch(responseBody)
 	if len(submatch) != 2 {
 		return fmt.Errorf("can not find go(params) in second layer response")
@@ -280,7 +292,7 @@ func (x *jslClient) processSecondLayer(ctx context.Context, responseBody string)
 
 // isSecondLayer 宽松判断：含 __jsl_clearance + ct 字段且以 })</script> 结尾，
 // 不再硬编码 wt 值，抵抗加速乐调整 wt/vt。
-func (x *jslClient) isSecondLayer(body string) bool {
+func (x *JslClient) isSecondLayer(body string) bool {
 	return strings.HasSuffix(body, "})</script>") &&
 		strings.Contains(body, `"tn":"__jsl_clearance`) &&
 		strings.Contains(body, `"ct":"`)
@@ -298,7 +310,7 @@ type secondLayerParams struct {
 }
 
 // newCookie 复刻 jsl_sdk 的纯 Go 破解算法（md5/sha1/sha256）。
-func (x *jslClient) newCookie(params *secondLayerParams) (string, int64) {
+func (x *JslClient) newCookie(params *secondLayerParams) (string, int64) {
 	begin := time.Now()
 	for _, c1 := range params.Chars {
 		for _, c2 := range params.Chars {
@@ -326,7 +338,7 @@ func (x *jslClient) newCookie(params *secondLayerParams) (string, int64) {
 	return "", 0
 }
 
-func (x *jslClient) cookieHeaderValue() string {
+func (x *JslClient) cookieHeaderValue() string {
 	var b strings.Builder
 	for name, value := range x.cookieMap {
 		b.WriteString(name)
@@ -337,7 +349,7 @@ func (x *jslClient) cookieHeaderValue() string {
 	return b.String()
 }
 
-func (x *jslClient) isBlockedByShield(body string) bool {
+func (x *JslClient) isBlockedByShield(body string) bool {
 	return strings.Contains(body, `当前访问疑似黑客攻击，已被创宇盾拦截。`)
 }
 

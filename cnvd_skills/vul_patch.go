@@ -40,7 +40,7 @@ func (x *CnvdSkills) RequestVulPatchByID(ctx context.Context, patchID string, pr
 
 // RequestVulPatchByURL 根据补丁详情页URL请求并解析。内部走 requestWithRetry。
 func (x *CnvdSkills) RequestVulPatchByURL(ctx context.Context, patchPageURL string, proxyProvider ProxyProvider) (*VulPatch, error) {
-	body, err := requestWithRetry(ctx, proxyProvider, nil, patchPageURL)
+	body, err := x.requestWithRetry(ctx, proxyProvider, nil, patchPageURL)
 	if err != nil {
 		return nil, err
 	}

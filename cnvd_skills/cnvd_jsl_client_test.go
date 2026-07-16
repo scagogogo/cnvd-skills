@@ -15,7 +15,7 @@ func TestJslClient_ProcessFirstLayer_ExtractsCookie(t *testing.T) {
 	body, err := os.ReadFile("testdata/jsl_first_layer_sample.html")
 	assert.Nil(t, err)
 
-	c := newJslClient("", 0, nil)
+	c := NewJslClient("", 0, nil)
 	err = c.processFirstLayer(string(body))
 	assert.Nil(t, err)
 
@@ -31,14 +31,14 @@ func TestJslClient_ProcessFirstLayer_ExtractsCookie(t *testing.T) {
 // TestJslClient_IsFirstLayer 判断函数对真实 fixture 返回 true
 func TestJslClient_IsFirstLayer(t *testing.T) {
 	body, _ := os.ReadFile("testdata/jsl_first_layer_sample.html")
-	c := newJslClient("", 0, nil)
+	c := NewJslClient("", 0, nil)
 	assert.True(t, c.isFirstLayer(string(body)))
 	assert.False(t, c.isFirstLayer("<html>normal page</html>"))
 }
 
 // TestJslClient_IsSecondLayer 宽松判断不依赖固定 wt 值
 func TestJslClient_IsSecondLayer(t *testing.T) {
-	c := newJslClient("", 0, nil)
+	c := NewJslClient("", 0, nil)
 	// wt=3000（非 1500）也应被识别
 	body := `...go({"bts":["x","y"],"chars":"ab","ct":"deadbeef","ha":"sha256","tn":"__jsl_clearance_s","vt":"3600","wt":"3000"})</script>`
 	assert.True(t, c.isSecondLayer(body))
@@ -48,7 +48,7 @@ func TestJslClient_IsSecondLayer(t *testing.T) {
 // TestJslClient_NewCookie 复刻的破解算法不 panic 且命中时返回正确结构。
 // 构造一个 ct 已知的参数确保命中。
 func TestJslClient_NewCookie(t *testing.T) {
-	c := newJslClient("", 0, nil)
+	c := NewJslClient("", 0, nil)
 	// 构造确定命中的场景：chars="ab"，bts=["pre-","-post"]，
 	// 预算 "pre-aa-post" 的 sha256 作为 ct，确保 newCookie 能命中并返回 "pre-aa-post"。
 	v := "pre-aa-post"

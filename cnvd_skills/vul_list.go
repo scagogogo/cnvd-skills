@@ -211,7 +211,7 @@ func (x *CnvdSkills) RequestVulListByOffset(ctx context.Context, offset int, pro
 // 可传入 CaptchaSolver 以通过加速乐验证码挑战。
 func (x *CnvdSkills) RequestVulListByOffsetWithConfig(ctx context.Context, offset int, proxyProvider ProxyProvider, config *Config) (*VulList, error) {
 	targetUrl := fmt.Sprintf("https://www.cnvd.org.cn/flaw/list?numPerPage=10&offset=%d&max=10", offset)
-	body, err := requestWithRetry(ctx, proxyProvider, config, targetUrl)
+	body, err := x.requestWithRetry(ctx, proxyProvider, config, targetUrl)
 	if err != nil {
 		return nil, err
 	}

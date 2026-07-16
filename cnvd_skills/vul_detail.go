@@ -102,7 +102,10 @@ type VendorPatch struct {
 // 代理类错误（isProxyInvalid）会重新向 proxyProvider 取新 IP 重试；
 // 非代理错误在 MaxRetry 次内重试，超出返回最后一次错误。
 // config 为 nil 时退化为不重试的单次请求。全程响应 ctx 取消（含飞行中 HTTP）。
-func requestWithRetry(ctx context.Context, proxyProvider ProxyProvider, config *Config, targetUrl string) (string, error) {
+//
+// 每次尝试按当前 config 派生一个独立的 JslClient（不修改 CnvdSkills 持有的共享实例），
+// 保证并发安全。
+func (x *CnvdSkills) requestWithRetry(ctx context.Context, proxyProvider ProxyProvider, config *Config, targetUrl string) (string, error) {
 	var lastErr error
 	proxy, err := proxyProvider()
 	if err != nil {
@@ -123,7 +126,7 @@ func requestWithRetry(ctx context.Context, proxyProvider ProxyProvider, config *
 		default:
 		}
 
-		client := newJslClient(proxy, timeoutSec, solver)
+		client := NewJslClient(proxy, timeoutSec, solver)
 		body, getErr := client.Get(ctx, targetUrl)
 		if getErr == nil {
 			return body, nil
@@ -183,7 +186,7 @@ func (x *CnvdSkills) RequestVulDetailByURL(ctx context.Context, detailPageURL st
 // RequestVulDetailByURLWithConfig 同 RequestVulDetailByURL，但接收 config，
 // 可传入 CaptchaSolver 以通过加速乐验证码挑战。
 func (x *CnvdSkills) RequestVulDetailByURLWithConfig(ctx context.Context, detailPageURL string, proxyProvider ProxyProvider, config *Config) (*VulDetail, error) {
-	body, err := requestWithRetry(ctx, proxyProvider, config, detailPageURL)
+	body, err := x.requestWithRetry(ctx, proxyProvider, config, detailPageURL)
 	if err != nil {
 		return nil, err
 	}
