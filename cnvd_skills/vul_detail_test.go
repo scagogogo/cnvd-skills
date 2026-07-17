@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/scagogogo/go-jsl"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -27,7 +28,7 @@ func TestCnvdSkills_RequestVulDetail(t *testing.T) {
 
 // TestRequestVulDetail_Real 真实集成测试：从 CNVD 抓取 CNVD-2021-67823 并校验数据
 // 格式与有效性。CNVD 触发加速乐图片验证码挑战时用 CommandCaptchaSolver 调
-// scripts/ddddocr_solver.py（ddddocr）自动识别。-short 跳过。
+// gojsl/scripts/ddddocr_solver.py（ddddocr）自动识别。-short 跳过。
 func TestRequestVulDetail_Real(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping network-dependent integration test in short mode")
@@ -38,9 +39,9 @@ func TestRequestVulDetail_Real(t *testing.T) {
 	cfg := &Config{
 		MaxRetry:              3,
 		RequestTimeoutSeconds: 30,
-		CaptchaSolver: CommandCaptchaSolver{
+		CaptchaSolver: jsl.CommandCaptchaSolver{
 			Command: "python3",
-			Args:    []string{"../scripts/ddddocr_solver.py"},
+			Args:    []string{"../gojsl/scripts/ddddocr_solver.py"},
 		},
 	}
 	detail, err := NewCnvdSkills().RequestVulDetailByIDWithConfig(ctx, "CNVD-2021-67823", FixedProxyProvider(""), cfg)
@@ -77,9 +78,9 @@ func TestFetchVulDetail_Real(t *testing.T) {
 	cfg := &Config{
 		MaxRetry:              3,
 		RequestTimeoutSeconds: 30,
-		CaptchaSolver: CommandCaptchaSolver{
+		CaptchaSolver: jsl.CommandCaptchaSolver{
 			Command: "python3",
-			Args:    []string{"../scripts/ddddocr_solver.py"},
+			Args:    []string{"../gojsl/scripts/ddddocr_solver.py"},
 		},
 	}
 	detail, err := NewCnvdSkills().FetchVulDetailWithConfig(ctx, "CNVD-2021-67823", FixedProxyProvider(""), cfg)

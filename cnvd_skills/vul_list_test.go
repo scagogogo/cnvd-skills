@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/scagogogo/go-jsl"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -32,9 +33,9 @@ func TestRequestVulListByOffset_Real(t *testing.T) {
 	cfg := &Config{
 		MaxRetry:              3,
 		RequestTimeoutSeconds: 30,
-		CaptchaSolver: CommandCaptchaSolver{
+		CaptchaSolver: jsl.CommandCaptchaSolver{
 			Command: "python3",
-			Args:    []string{"../scripts/ddddocr_solver.py"},
+			Args:    []string{"../gojsl/scripts/ddddocr_solver.py"},
 		},
 	}
 	list, err := NewCnvdSkills().RequestVulListByOffsetWithConfig(ctx, 0, FixedProxyProvider(""), cfg)

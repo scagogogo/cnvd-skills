@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/PuerkitoBio/goquery"
+	"github.com/scagogogo/go-jsl"
 	"strings"
 	"time"
 )
@@ -113,7 +114,7 @@ func (x *CnvdSkills) requestWithRetry(ctx context.Context, proxyProvider ProxyPr
 	}
 	maxRetry := 0
 	timeoutSec := 0
-	var solver CaptchaSolver
+	var solver jsl.CaptchaSolver
 	if config != nil {
 		maxRetry = config.MaxRetry
 		timeoutSec = config.RequestTimeoutSeconds
@@ -126,7 +127,7 @@ func (x *CnvdSkills) requestWithRetry(ctx context.Context, proxyProvider ProxyPr
 		default:
 		}
 
-		client := NewJslClient(proxy, timeoutSec, solver)
+		client := jsl.NewJslClient(proxy, timeoutSec, solver)
 		body, getErr := client.Get(ctx, targetUrl)
 		if getErr == nil {
 			return body, nil
@@ -148,7 +149,7 @@ func (x *CnvdSkills) requestWithRetry(ctx context.Context, proxyProvider ProxyPr
 		}
 
 		// 验证码类错误不上抛重试（需调用方配识别器），直接返回
-		if errors.Is(getErr, ErrCaptchaRequired) {
+		if errors.Is(getErr, jsl.ErrCaptchaRequired) {
 			return "", getErr
 		}
 

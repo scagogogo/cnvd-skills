@@ -1,5 +1,7 @@
 package cnvd_skills
 
+import "github.com/scagogogo/go-jsl"
+
 // Config 抓取配置，控制输出路径、分页大小、请求节奏、重试与去重。
 type Config struct {
 
@@ -28,9 +30,9 @@ type Config struct {
 	EnableDedup bool
 
 	// 验证码识别器。CNVD 触发图片验证码挑战时用于自动通过：
-	// 配置后库自动取图→识别→提交→放行刷新；不配置则遇验证码返回 ErrCaptchaRequired。
-	// 内置实现见 captcha.go（InteractiveCaptchaSolver / NoopCaptchaSolver）。
-	CaptchaSolver CaptchaSolver
+	// 配置后库自动取图→识别→提交→放行刷新；不配置则遇验证码返回 jsl.ErrCaptchaRequired。
+	// 内置实现见 go-jsl 包（jsl.CommandCaptchaSolver 等）。
+	CaptchaSolver jsl.CaptchaSolver
 }
 
 // DefaultConfig 返回默认配置。
