@@ -99,6 +99,36 @@ func (h *HttpClient) DoPost(ctx context.Context, targetURL, body string, extraHe
 	return resp.String(), nil
 }
 
+// DoPostStatus 发起一次 POST，返回响应体与 HTTP 状态码。
+// 供需要按状态码判定的场景（如 captcha 提交：非 200 视为失败需重试）。
+func (h *HttpClient) DoPostStatus(ctx context.Context, targetURL, body string, extraHeaders map[string]string) (string, int, error) {
+	req := h.client.R().SetContext(ctx).
+		SetHeader("Content-Type", "application/x-www-form-urlencoded").
+		SetBody(body)
+	for k, v := range extraHeaders {
+		req.SetHeader(k, v)
+	}
+	resp, err := req.Post(targetURL)
+	if err != nil {
+		return "", 0, err
+	}
+	return resp.String(), resp.StatusCode(), nil
+}
+
+// DoStatus 发起一次 GET，返回响应体与 HTTP 状态码。
+// 供需要按状态码判定的场景（如 captcha 端点：非 200 视为失败需重试）。
+func (h *HttpClient) DoStatus(ctx context.Context, targetURL string, extraHeaders map[string]string) (string, int, error) {
+	req := h.client.R().SetContext(ctx)
+	for k, v := range extraHeaders {
+		req.SetHeader(k, v)
+	}
+	resp, err := req.Get(targetURL)
+	if err != nil {
+		return "", 0, err
+	}
+	return resp.String(), resp.StatusCode(), nil
+}
+
 func (h *HttpClient) pickUserAgent() userAgent {
 	return randomUserAgent()
 }

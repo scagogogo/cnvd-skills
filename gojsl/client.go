@@ -162,13 +162,27 @@ func (x *JslClient) submitCaptchaAnswer(ctx context.Context, targetUrl, ans, sec
 // captchaRequest 对验证码端点发请求（GET 或 POST），共用 jsl 会话 cookie。
 // postBody 非空时为 POST application/x-www-form-urlencoded。
 // cookie 由 HttpClient 的 jar 自动携带。
+// 端点返回非 200 视为失败（错误答案会返回 401），触发上层重试。
 func (x *JslClient) captchaRequest(ctx context.Context, reqURL, referer, postBody string) (string, error) {
 	x.ensureTargetSite(referer)
 	headers := captchaHeaders(referer)
+	var (
+		body   string
+		status int
+		err    error
+	)
 	if postBody != "" {
-		return x.httpClient.DoPost(ctx, reqURL, postBody, headers)
+		body, status, err = x.httpClient.DoPostStatus(ctx, reqURL, postBody, headers)
+	} else {
+		body, status, err = x.httpClient.DoStatus(ctx, reqURL, headers)
 	}
-	return x.httpClient.Do(ctx, reqURL, headers)
+	if err != nil {
+		return "", err
+	}
+	if status != 200 {
+		return "", fmt.Errorf("captcha endpoint returned %d", status)
+	}
+	return body, nil
 }
 
 // isCaptchaChallenge 判断响应是否为加速乐验证码挑战页。

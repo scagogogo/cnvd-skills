@@ -49,6 +49,32 @@ func TestHttpClient_DoPost_BodyAndContentType(t *testing.T) {
 	assert.Equal(t, "submitted", body)
 }
 
+func TestHttpClient_DoStatus_ReturnsStatusCode(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("ok"))
+	}))
+	defer srv.Close()
+	hc := NewHttpClient("", 0)
+	body, status, err := hc.DoStatus(context.Background(), srv.URL, nil)
+	assert.Nil(t, err)
+	assert.Equal(t, 200, status)
+	assert.Equal(t, "ok", body)
+}
+
+func TestHttpClient_DoPostStatus_Non200ReturnsStatus(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusUnauthorized)
+		w.Write([]byte(`{"msg":"args-err"}`))
+	}))
+	defer srv.Close()
+	hc := NewHttpClient("", 0)
+	body, status, err := hc.DoPostStatus(context.Background(), srv.URL, "ans=wrong", nil)
+	assert.Nil(t, err)
+	assert.Equal(t, 401, status)
+	assert.Contains(t, body, "args-err")
+}
+
 func TestHttpClient_RefreshUserAgent_KeepsHeaders(t *testing.T) {
 	hc := NewHttpClient("", 0)
 	hc.RefreshUserAgent()
