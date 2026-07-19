@@ -20,6 +20,8 @@
 - **UA 池随机**：UA 从真实 Chrome 121/122（Win/Mac/Linux）池随机选取，Client Hints 头随之联动，避免单一固定 UA 的指纹特征。长会话可调 `RefreshUserAgent()` 轮换。
 - **人类节奏抖动**：翻页与详情请求间隔按可配置的 `Jitter`（默认 0.3，范围 ±30%）随机化，验证码取图前加 500~1500ms 人类看图反应延迟，降低机器化节奏特征。
 
+> **TLS 指纹未伪装**：当前隐蔽性聚焦在连接复用、Header、UA、节奏四维，底层仍用 Go 标准库 `net/http` 的 TLS ClientHello（未引入 uTLS）。已验证可正常穿透 CNVD 加速乐三层 + 创宇盾验证码；若目标站点升级到 TLS 指纹级反爬，再考虑引入 uTLS。
+
 ## 安装
 
 ```bash

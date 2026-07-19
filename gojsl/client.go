@@ -342,17 +342,6 @@ func (x *JslClient) syncCookiesToJar() {
 	}
 }
 
-func (x *JslClient) cookieHeaderValue() string {
-	var b strings.Builder
-	for name, value := range x.cookieMap {
-		b.WriteString(name)
-		b.WriteString("=")
-		b.WriteString(value)
-		b.WriteString("; ")
-	}
-	return b.String()
-}
-
 func (x *JslClient) isBlockedByShield(body string) bool {
 	return strings.Contains(body, `当前访问疑似黑客攻击，已被创宇盾拦截。`)
 }
