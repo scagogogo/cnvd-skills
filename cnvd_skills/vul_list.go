@@ -45,6 +45,7 @@ type VulListItem struct {
 
 // VulList 抓取漏洞列表并逐条抓取详情，写入输出文件（JSONL）。
 // 接收 config 控制输出路径与节奏；接收 ctx 支持取消。
+// config.CaptchaSolver 非空时，列表与详情请求遇加速乐验证码挑战自动通过。
 // 不再 panic，所有错误返回 error。当 TotalPage 可解析时按总页数停止，否则持续翻页直到详情列表为空。
 func (x *CnvdSkills) VulList(ctx context.Context, proxyProvider ProxyProvider, config *Config) error {
 	if config == nil {
@@ -59,7 +60,7 @@ func (x *CnvdSkills) VulList(ctx context.Context, proxyProvider ProxyProvider, c
 		}
 
 		offset := (page - 1) * config.NumPerPage
-		list, err := x.RequestVulListByOffset(ctx, offset, proxyProvider)
+		list, err := x.RequestVulListByOffsetWithConfig(ctx, offset, proxyProvider, config)
 		if err != nil {
 			if isProxyInvalid(err) {
 				time.Sleep(time.Duration(config.ProxyRetryIntervalSeconds) * time.Second)
@@ -138,7 +139,7 @@ func (x *CnvdSkills) fetchAndSaveDetail(ctx context.Context, proxyProvider Proxy
 		}
 
 		fmt.Println("开始请求： " + item.Title)
-		detail, err := x.RequestVulDetailByURL(ctx, "https://www.cnvd.org.cn"+item.Href, proxyProvider)
+		detail, err := x.RequestVulDetailByURLWithConfig(ctx, "https://www.cnvd.org.cn"+item.Href, proxyProvider, config)
 		if err != nil {
 			if isProxyInvalid(err) {
 				time.Sleep(time.Duration(config.ProxyRetryIntervalSeconds) * time.Second)
