@@ -191,6 +191,10 @@ func parentDir(path string) string {
 	return "."
 }
 
+// globalRand 用于 jitterSleep 的随机抖动。Go 1.18 包级 rand 不会自动 seed，
+// 显式用时间戳播种，避免每次进程启动产生固定序列。
+var globalRand = rand.New(rand.NewSource(time.Now().UnixNano()))
+
 // jitterSleep 按 config.Jitter 把 baseSeconds 随机化后休眠，ctx 感知。
 // Jitter=0 时固定休眠 baseSeconds；Jitter=0.5 时休眠时长在 [base*(1-0.5), base*(1+0.5)] 范围。
 func jitterSleep(ctx context.Context, baseSeconds int, jitter float64) {
@@ -200,7 +204,7 @@ func jitterSleep(ctx context.Context, baseSeconds int, jitter float64) {
 	d := time.Duration(baseSeconds) * time.Second
 	if jitter > 0 {
 		span := float64(d) * jitter
-		offset := time.Duration(rand.Float64()*2*span) - time.Duration(span)
+		offset := time.Duration(globalRand.Float64()*2*span) - time.Duration(span)
 		d = d + offset
 		if d < 0 {
 			d = 0
