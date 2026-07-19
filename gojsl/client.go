@@ -8,6 +8,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"math/rand"
 	"net/url"
 	"regexp"
 	"strings"
@@ -118,6 +119,13 @@ func (x *JslClient) processCaptcha(ctx context.Context, targetUrl string) error 
 		case <-ctx.Done():
 			return ctx.Err()
 		default:
+		}
+		// 模拟人类看图反应：500~1500ms 随机延迟，降低机器化特征
+		reactionDelay := time.Duration(500+rand.Intn(1000)) * time.Millisecond
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(reactionDelay):
 		}
 		imageBase64, sec, err := x.fetchCaptchaImage(ctx, targetUrl)
 		if err != nil {

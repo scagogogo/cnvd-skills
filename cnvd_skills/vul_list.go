@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"math/rand"
 	"github.com/PuerkitoBio/goquery"
 	"github.com/golang-infrastructure/go-pointer"
 	"os"
@@ -63,7 +64,7 @@ func (x *CnvdSkills) VulList(ctx context.Context, proxyProvider ProxyProvider, c
 		list, err := x.RequestVulListByOffsetWithConfig(ctx, offset, proxyProvider, config)
 		if err != nil {
 			if isProxyInvalid(err) {
-				time.Sleep(time.Duration(config.ProxyRetryIntervalSeconds) * time.Second)
+				jitterSleep(ctx, config.ProxyRetryIntervalSeconds, config.Jitter)
 				continue // 同一页重试，换代理
 			}
 			return err
@@ -87,7 +88,7 @@ func (x *CnvdSkills) VulList(ctx context.Context, proxyProvider ProxyProvider, c
 			return nil
 		}
 		page++
-		time.Sleep(time.Duration(config.ListPageIntervalSeconds) * time.Second)
+		jitterSleep(ctx, config.ListPageIntervalSeconds, config.Jitter)
 	}
 }
 
@@ -142,7 +143,7 @@ func (x *CnvdSkills) fetchAndSaveDetail(ctx context.Context, proxyProvider Proxy
 		detail, err := x.RequestVulDetailByURLWithConfig(ctx, "https://www.cnvd.org.cn"+item.Href, proxyProvider, config)
 		if err != nil {
 			if isProxyInvalid(err) {
-				time.Sleep(time.Duration(config.ProxyRetryIntervalSeconds) * time.Second)
+				jitterSleep(ctx, config.ProxyRetryIntervalSeconds, config.Jitter)
 				continue
 			}
 			return err
@@ -172,7 +173,7 @@ func (x *CnvdSkills) fetchAndSaveDetail(ctx context.Context, proxyProvider Proxy
 		if err := file.Close(); err != nil {
 			return err
 		}
-		time.Sleep(time.Duration(config.DetailIntervalSeconds) * time.Second)
+		jitterSleep(ctx, config.DetailIntervalSeconds, config.Jitter)
 		return nil
 	}
 }
@@ -188,6 +189,27 @@ func parentDir(path string) string {
 		}
 	}
 	return "."
+}
+
+// jitterSleep 按 config.Jitter 把 baseSeconds 随机化后休眠，ctx 感知。
+// Jitter=0 时固定休眠 baseSeconds；Jitter=0.5 时休眠时长在 [base*(1-0.5), base*(1+0.5)] 范围。
+func jitterSleep(ctx context.Context, baseSeconds int, jitter float64) {
+	if baseSeconds <= 0 {
+		return
+	}
+	d := time.Duration(baseSeconds) * time.Second
+	if jitter > 0 {
+		span := float64(d) * jitter
+		offset := time.Duration(rand.Float64()*2*span) - time.Duration(span)
+		d = d + offset
+		if d < 0 {
+			d = 0
+		}
+	}
+	select {
+	case <-ctx.Done():
+	case <-time.After(d):
+	}
 }
 
 // extractCnvdIDFromHref 从列表项相对链接提取 CNVD-ID。

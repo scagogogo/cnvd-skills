@@ -29,6 +29,10 @@ type Config struct {
 	// 是否对输出文件按 CNVD-ID 去重，默认 true
 	EnableDedup bool
 
+	// 翻页与详情请求间隔的随机抖动幅度（0~1，0=关闭抖动用固定间隔，0.5=间隔在 ±50% 范围随机）。
+	// 用于模拟人类浏览节奏，降低被反爬识别为机器的概率。默认 0.3。
+	Jitter float64
+
 	// 验证码识别器。CNVD 触发图片验证码挑战时用于自动通过：
 	// 配置后库自动取图→识别→提交→放行刷新；不配置则遇验证码返回 jsl.ErrCaptchaRequired。
 	// 内置实现见 go-jsl 包（jsl.CommandCaptchaSolver 等）。
@@ -46,5 +50,6 @@ func DefaultConfig() *Config {
 		MaxRetry:                  3,
 		RequestTimeoutSeconds:     30,
 		EnableDedup:               true,
+		Jitter:                    0.3,
 	}
 }
