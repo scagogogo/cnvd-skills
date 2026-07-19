@@ -140,6 +140,7 @@ html, err := client.Get(context.Background(), "https://www.cnvd.org.cn/flaw/show
 | MaxRetry | 3 | 单次请求最大重试次数 |
 | RequestTimeoutSeconds | 30 | 单次请求超时（秒，0=不限） |
 | EnableDedup | true | 是否按 CNVD-ID 去重输出 |
+| Jitter | 0.3 | 翻页/详情/代理重试间隔的随机抖动幅度（0=关闭用固定间隔，0.5=±50%），模拟人类节奏 |
 | CaptchaSolver | nil | 验证码识别器，不配则遇验证码返回 `ErrCaptchaRequired` |
 
 ### WithConfig API 变体
@@ -175,6 +176,7 @@ go test ./cnvd_skills/ -run "_Real" -v -timeout 400s
 
 - **解析与请求分离**：`ParseXxx` 接受纯字符串入参、返回结构体与 error，可用本地 HTML fixture 离线测试，无需网络与代理。
 - **自研加速乐客户端**：`jsl_client.go` 复刻并修复了原 jsl_sdk 的三层解密（first 层正则兼容 `; Max-age` 大写带空格格式），接入 context、超时、代理与验证码挑战流程，移除了对私有 jsl_sdk 的依赖。已剥离为独立模块 [go-jsl](./gojsl)（`github.com/scagogogo/go-jsl`），本库通过 go.mod require + 本地 replace 依赖；`CnvdSkills` 持有默认 `jsl.JslClient` 实例，三处请求统一走 `requestWithRetry` 方法派生的独立客户端（并发安全）。
+- **请求隐蔽性强化**：go-jsl 内部经统一 `HttpClient` 收发所有请求（三层解密每一跳、验证码取图/提交、放行刷新），而非每次新建连接——复用 TCP/TLS 连接、cookie jar 自动管理会话、浏览器级 Header 全套（Client Hints `sec-ch-ua` 与 UA 大版本联动、Fetch Metadata `Sec-Fetch-*`）、UA 从真实 Chrome 121/122 池随机、翻页/详情/验证码间隔按 `Jitter` 随机抖动，降低被反爬识别为机器的概率。详见 [go-jsl README](./gojsl#隐蔽性)。
 - **验证码可插拔**：识别环节抽成 `CaptchaSolver` 接口，库负责取图/提交/放行刷新/重试，调用方注入"图→答案"实现。
 - **请求层重试**：`requestWithRetry` 统一封装，代理类错误自动换 IP、非代理错误按 `MaxRetry` 重试，验证码类错误（`ErrCaptchaRequired`）不重试直接上抛，全程支持 `context.Context` 取消。
 - **去重**：`EnableDedup` 开启时，写文件前读取已抓 CNVD 集合，跳过重复条目，支持断点续抓。
