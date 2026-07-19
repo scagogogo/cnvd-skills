@@ -14,7 +14,6 @@ import (
 	"time"
 
 	"github.com/dop251/goja"
-	"github.com/go-resty/resty/v2"
 )
 
 // JslClient 破解加速乐（JSL）三层加密的 HTTP 客户端，可访问任意被加速乐保护的站点。
@@ -23,27 +22,35 @@ import (
 // 第二层 go({...}) 参数 + md5/sha1/sha256 暴力匹配算 __jsl_clearance_s；第三层带 cookie GET），
 // 并在第三层返回验证码挑战页时自动取图→调用 CaptchaSolver→提交答案→放行刷新拿真实页。
 //
-// 字段私有，外部通过 NewJslClient 构造、Get 发起请求。一个实例非并发安全
-// （cookieMap 会随请求累积），并发场景请为每个请求构造独立实例。
+// 内部持有统一的 HttpClient（连接复用 + cookie jar + 浏览器级 Header + UA 池），
+// 三层解密每一跳与验证码流程都经它收发，降低被反爬识别的概率。
+// 一个实例非并发安全（cookie jar 会随请求累积），并发场景请为每个请求构造独立实例。
 type JslClient struct {
+	httpClient *HttpClient
+	// cookieMap 保留作为解密中间产物（第一层 goja 算出、第二层 newCookie 算出），
+	// 解密完成后同步进 HttpClient 的 cookie jar，由 jar 统一管理后续请求的 Cookie 头。
 	cookieMap map[string]string
 	proxy     string
 	timeout   time.Duration
 	solver    CaptchaSolver
+	// targetSite 用于把解密 cookie 写入 jar 的作用域，从首次请求 URL 推导。
+	targetSite string
 }
 
 // NewJslClient 构造一个加速乐客户端。proxy 为空串表示直连；
 // timeoutSeconds 为 0 表示不限时；solver 为 nil 时遇验证码返回 ErrCaptchaRequired。
+// 内部构造一个 HttpClient 启用 cookie jar 与浏览器级 Header。
 func NewJslClient(proxy string, timeoutSeconds int, solver CaptchaSolver) *JslClient {
 	timeout := time.Duration(0)
 	if timeoutSeconds > 0 {
 		timeout = time.Duration(timeoutSeconds) * time.Second
 	}
 	return &JslClient{
-		cookieMap: make(map[string]string),
-		proxy:     proxy,
-		timeout:   timeout,
-		solver:    solver,
+		httpClient: NewHttpClient(proxy, timeoutSeconds),
+		cookieMap:  make(map[string]string),
+		proxy:      proxy,
+		timeout:    timeout,
+		solver:     solver,
 	}
 }
 
@@ -154,44 +161,14 @@ func (x *JslClient) submitCaptchaAnswer(ctx context.Context, targetUrl, ans, sec
 
 // captchaRequest 对验证码端点发请求（GET 或 POST），共用 jsl 会话 cookie。
 // postBody 非空时为 POST application/x-www-form-urlencoded。
-// 端点返回非 200 视为失败。
+// cookie 由 HttpClient 的 jar 自动携带。
 func (x *JslClient) captchaRequest(ctx context.Context, reqURL, referer, postBody string) (string, error) {
-	client := resty.New()
-	if x.proxy != "" {
-		client.SetProxy(x.proxy)
-	}
-	if x.timeout > 0 {
-		client.SetTimeout(x.timeout)
-	}
-	req := client.R().
-		SetContext(ctx).
-		SetHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/112.0.0.0 Safari/537.36").
-		SetHeader("Accept", "application/json, text/javascript, */*; q=0.01").
-		SetHeader("Accept-Language", "zh-CN,zh;q=0.9").
-		SetHeader("Referer", referer).
-		SetHeader("X-Requested-With", "XMLHttpRequest")
-	if cv := x.cookieHeaderValue(); cv != "" {
-		req.SetHeader("Cookie", cv)
-	}
-	var resp *resty.Response
-	var err error
+	x.ensureTargetSite(referer)
+	headers := captchaHeaders(referer)
 	if postBody != "" {
-		req.SetHeader("Content-Type", "application/x-www-form-urlencoded")
-		req.SetBody(postBody)
-		resp, err = req.Post(reqURL)
-	} else {
-		resp, err = req.Get(reqURL)
+		return x.httpClient.DoPost(ctx, reqURL, postBody, headers)
 	}
-	if err != nil {
-		return "", err
-	}
-	for _, c := range resp.Cookies() {
-		x.cookieMap[c.Name] = c.Value
-	}
-	if resp.StatusCode() != 200 {
-		return "", fmt.Errorf("captcha endpoint returned %d", resp.StatusCode())
-	}
-	return resp.String(), nil
+	return x.httpClient.Do(ctx, reqURL, headers)
 }
 
 // isCaptchaChallenge 判断响应是否为加速乐验证码挑战页。
@@ -199,36 +176,18 @@ func isCaptchaChallenge(body string) bool {
 	return strings.Contains(body, "本站开启了验证码保护") || strings.Contains(body, "/cdn-cgi/js/captcha.js")
 }
 
-// plainRequest 发一次带当前 cookie 的普通 GET，返回响应体字符串。
+// plainRequest 发一次带当前会话 cookie 的普通 GET（导航请求），返回响应体字符串。
+// cookie 由 HttpClient 的 jar 自动携带，无需手动拼 Cookie 头。
 func (x *JslClient) plainRequest(ctx context.Context, targetUrl string) (string, error) {
-	client := resty.New()
-	if x.proxy != "" {
-		client.SetProxy(x.proxy)
-	}
-	if x.timeout > 0 {
-		client.SetTimeout(x.timeout)
-	}
-	req := client.R().
-		SetContext(ctx).
-		SetHeader("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8").
-		SetHeader("Accept-Encoding", "gzip, deflate, br").
-		SetHeader("Accept-Language", "zh-CN,zh;q=0.9").
-		SetHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/112.0.0.0 Safari/537.36")
-	if cv := x.cookieHeaderValue(); cv != "" {
-		req.SetHeader("Cookie", cv)
-	}
-	resp, err := req.Get(targetUrl)
+	x.ensureTargetSite(targetUrl)
+	resp, err := x.httpClient.Do(ctx, targetUrl, navigationHeaders(""))
 	if err != nil {
 		return "", err
 	}
-	// 收集响应 Set-Cookie
-	for _, c := range resp.Cookies() {
-		x.cookieMap[c.Name] = c.Value
-	}
-	if x.isBlockedByShield(resp.String()) {
+	if x.isBlockedByShield(resp) {
 		return "", fmt.Errorf("blocked by 创宇盾 (proxy may be banned): %s", targetUrl)
 	}
-	return resp.String(), nil
+	return resp, nil
 }
 
 // processFirstLayer 从第一层加密响应解出初始 cookie。
@@ -254,6 +213,7 @@ func (x *JslClient) processFirstLayer(responseBody string) error {
 		return fmt.Errorf("can not extract cookie value: %s", setCookieStr)
 	}
 	x.cookieMap[submatch[1]] = submatch[2]
+	x.syncCookiesToJar()
 	return nil
 }
 
@@ -287,6 +247,7 @@ func (x *JslClient) processSecondLayer(ctx context.Context, responseBody string)
 		}
 	}
 	x.cookieMap[params.Tn] = cookie
+	x.syncCookiesToJar()
 	return nil
 }
 
@@ -336,6 +297,28 @@ func (x *JslClient) newCookie(params *secondLayerParams) (string, int64) {
 		}
 	}
 	return "", 0
+}
+
+// ensureTargetSite 从 URL 推导站点根（scheme://host），用于把解密 cookie 写入 jar 的作用域。
+// 首次调用后缓存，后续请求复用。
+func (x *JslClient) ensureTargetSite(rawURL string) {
+	if x.targetSite != "" {
+		return
+	}
+	if u, err := url.Parse(rawURL); err == nil && u.Scheme != "" && u.Host != "" {
+		x.targetSite = u.Scheme + "://" + u.Host
+	}
+}
+
+// syncCookiesToJar 把 cookieMap 中的解密中间产物同步进 HttpClient 的 cookie jar，
+// 使后续请求的 Cookie 头由 jar 统一携带。
+func (x *JslClient) syncCookiesToJar() {
+	if x.targetSite == "" {
+		return
+	}
+	for name, value := range x.cookieMap {
+		x.httpClient.SetCookie(x.targetSite, name, value)
+	}
 }
 
 func (x *JslClient) cookieHeaderValue() string {
