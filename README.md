@@ -6,7 +6,8 @@
 
 - **漏洞列表** `/flaw/list` —— `RequestVulListByOffset` + `ParseVulList`，解析当前页码、总页数、总记录数与条目
 - **漏洞详情** `/flaw/show/CNVD-xxx` —— `RequestVulDetailByID` / `RequestVulDetailByURL` + `ParseVulDetail`，解析 CNVD/CVE/危害级别/影响产品/描述/参考链接/补丁/附件等，时间字段同时提供字符串与 `*time.Time`
-- **厂商补丁** `/patchInfo/show/:id` —— `RequestVulPatchByID` / `RequestVulPatchByURL` + `ParseVulPatch`
+- **厂商补丁** `/patchInfo/show/:id` —— `RequestVulPatchByID` / `RequestVulPatchByURL` + `ParseVulPatch`（含 `RequestVulPatchByIDWithConfig` / `RequestVulPatchByURLWithConfig` 变体以透传验证码识别器）
+- **列表检索** `/flaw/list?keyword=...` —— `RequestVulListByQuery` / `RequestVulListByQueryWithConfig` + `VulListWithQuery`，按关键词/日期范围/厂商/危害级别/类别定向检索
 - **单条抓取** `FetchVulDetail(cnvd)` —— 不落盘，返回结构化结果
 - **主流程** `VulList(ctx, proxyProvider, config)` —— 翻页抓取 + 逐条详情 + JSONL 落盘，按总页数停止、按 CNVD 去重
 - **反爬穿透** —— 自研加速乐三层解密客户端 + 可插拔验证码识别器（`CaptchaSolver`），自动通过 CNVD 图片验证码挑战
@@ -65,6 +66,25 @@ if err == nil {
 	fmt.Println(detail.CNVD, detail.CVE, detail.HazardLevel.Level)
 }
 ```
+
+### 列表检索（按关键词/日期）
+
+```go
+q := cnvd_skills.VulListQuery{
+	Keyword:   "XStream",
+	StartDate: "2024-01-01",
+	Endate:    "2024-12-31",
+}
+list, err := cnvd_skills.NewCnvdSkills().RequestVulListByQueryWithConfig(
+	context.Background(),
+	q,
+	0,
+	cnvd_skills.FixedProxyProvider(""),
+	cfg, // 含 CaptchaSolver
+)
+```
+
+说明：`VulListQuery` 字段对应 CNVD 真实表单字段（keyword/startDate/endDate/categoryId/manufacturerId/serverity/referenceScope 等），零值不拼入查询。`Endate` 字段对应表单 endDate。全量定向抓取用 `VulListWithQuery(ctx, q, proxyProvider, config)`，按 query 过滤翻页并逐条详情落盘。
 
 ## 加速乐与验证码挑战
 
@@ -128,6 +148,8 @@ html, err := client.Get(context.Background(), "https://www.cnvd.org.cn/flaw/show
 
 - `RequestVulDetailByIDWithConfig` / `RequestVulDetailByURLWithConfig`
 - `RequestVulListByOffsetWithConfig`
+- `RequestVulPatchByIDWithConfig` / `RequestVulPatchByURLWithConfig`
+- `RequestVulListByQueryWithConfig`
 - `FetchVulDetailWithConfig`
 
 ## 代理
