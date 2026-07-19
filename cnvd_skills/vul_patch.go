@@ -34,13 +34,25 @@ type VulPatch struct {
 
 // RequestVulPatchByID 根据补丁ID请求补丁详情，如 289241。
 func (x *CnvdSkills) RequestVulPatchByID(ctx context.Context, patchID string, proxyProvider ProxyProvider) (*VulPatch, error) {
+	return x.RequestVulPatchByIDWithConfig(ctx, patchID, proxyProvider, nil)
+}
+
+// RequestVulPatchByIDWithConfig 同 RequestVulPatchByID，但接收 config，
+// 可传入 CaptchaSolver 以通过加速乐验证码挑战。
+func (x *CnvdSkills) RequestVulPatchByIDWithConfig(ctx context.Context, patchID string, proxyProvider ProxyProvider, config *Config) (*VulPatch, error) {
 	targetUrl := "https://www.cnvd.org.cn/patchInfo/show/" + patchID
-	return x.RequestVulPatchByURL(ctx, targetUrl, proxyProvider)
+	return x.RequestVulPatchByURLWithConfig(ctx, targetUrl, proxyProvider, config)
 }
 
 // RequestVulPatchByURL 根据补丁详情页URL请求并解析。内部走 requestWithRetry。
 func (x *CnvdSkills) RequestVulPatchByURL(ctx context.Context, patchPageURL string, proxyProvider ProxyProvider) (*VulPatch, error) {
-	body, err := x.requestWithRetry(ctx, proxyProvider, nil, patchPageURL)
+	return x.RequestVulPatchByURLWithConfig(ctx, patchPageURL, proxyProvider, nil)
+}
+
+// RequestVulPatchByURLWithConfig 同 RequestVulPatchByURL，但接收 config，
+// 可传入 CaptchaSolver 以通过加速乐验证码挑战。
+func (x *CnvdSkills) RequestVulPatchByURLWithConfig(ctx context.Context, patchPageURL string, proxyProvider ProxyProvider, config *Config) (*VulPatch, error) {
+	body, err := x.requestWithRetry(ctx, proxyProvider, config, patchPageURL)
 	if err != nil {
 		return nil, err
 	}
