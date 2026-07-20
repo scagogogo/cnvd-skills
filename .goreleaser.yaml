@@ -1,0 +1,52 @@
+# .goreleaser.yaml — cnvd-skills CLI 发布配置
+# 注意：严禁设 gomod.proxy: true，否则 replace github.com/scagogogo/go-jsl => ./gojsl
+# 会被绕过去拉取不存在的远程模块，导致构建失败。
+version: 2
+
+project_name: cnvd-skills
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: cnvd-skills
+    main: ./
+    binary: cnvd-skills
+    env:
+      - CGO_ENABLED=0
+    flags:
+      - -trimpath
+    goos: [linux, darwin, windows]
+    goarch: [amd64, arm64]
+    ignore:
+      - goos: windows
+        goarch: arm64
+
+archives:
+  - id: default
+    formats: [tar.gz]
+    format_overrides:
+      - goos: windows
+        formats: [zip]
+    name_template: >-
+      {{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}
+
+checksum:
+  name_template: "checksums.txt"
+
+changelog:
+  sort: asc
+  use: github
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^chore:"
+
+release:
+  github:
+    owner: scagogogo
+    name: cnvd-skills
+  draft: true
+  prerelease: auto
