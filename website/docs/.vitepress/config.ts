@@ -53,9 +53,17 @@ export default defineConfig({
           text: '架构设计',
           items: [
             { text: '总览', link: '/architecture/overview' },
+            { text: '模块划分', link: '/architecture/modules' },
+            { text: '请求全链路', link: '/architecture/request-flow' },
             { text: '加速乐三层解密', link: '/architecture/jsl-three-layers' },
             { text: '验证码挑战', link: '/architecture/captcha' },
-            { text: '隐蔽性强化', link: '/architecture/stealth' }
+            { text: 'cookie 生命周期', link: '/architecture/cookie-lifecycle' },
+            { text: '隐蔽性强化', link: '/architecture/stealth' },
+            { text: 'UA 池与 Client Hints', link: '/architecture/ua-pool' },
+            { text: 'TLS 指纹决策', link: '/architecture/tls-fingerprint' },
+            { text: '错误处理', link: '/architecture/error-handling' },
+            { text: '并发模型', link: '/architecture/concurrency-model' },
+            { text: '设计取舍', link: '/architecture/design-decisions' }
           ]
         }
       ],
