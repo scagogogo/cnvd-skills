@@ -34,6 +34,18 @@ export default defineConfig({
             { text: '列表检索', link: '/guide/vul-list-query' },
             { text: '代理与重试', link: '/guide/proxy-retry' }
           ]
+        },
+        {
+          text: '进阶',
+          items: [
+            { text: 'CLI 快速运行', link: '/guide/quickstart-cli' },
+            { text: '输出格式', link: '/guide/output-format' },
+            { text: '去重机制', link: '/guide/dedup' },
+            { text: '节奏抖动', link: '/guide/jitter' },
+            { text: '验证码识别器', link: '/guide/captcha-solver-guide' },
+            { text: '并发安全', link: '/guide/concurrency' },
+            { text: '问题排查', link: '/guide/troubleshooting' }
+          ]
         }
       ],
       '/architecture/': [
