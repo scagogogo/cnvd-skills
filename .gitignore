@@ -3,3 +3,8 @@ config.yaml
 data/*
 # goreleaser / VitePress
 /dist/
+
+# VitePress
+website/node_modules/
+website/docs/.vitepress/dist/
+website/docs/.vitepress/cache/
