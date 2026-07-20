@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"net/url"
-	"time"
 )
 
 // VulListQuery 封装 CNVD 列表页的检索条件。
@@ -131,7 +130,7 @@ func (x *CnvdSkills) VulListWithQuery(ctx context.Context, query VulListQuery, p
 		list, err := x.RequestVulListByQueryWithConfig(ctx, query, offset, proxyProvider, config)
 		if err != nil {
 			if isProxyInvalid(err) {
-				time.Sleep(time.Duration(config.ProxyRetryIntervalSeconds) * time.Second)
+				jitterSleep(ctx, config.ProxyRetryIntervalSeconds, config.Jitter)
 				continue
 			}
 			return err
@@ -153,6 +152,6 @@ func (x *CnvdSkills) VulListWithQuery(ctx context.Context, query VulListQuery, p
 			return nil
 		}
 		page++
-		time.Sleep(time.Duration(config.ListPageIntervalSeconds) * time.Second)
+		jitterSleep(ctx, config.ListPageIntervalSeconds, config.Jitter)
 	}
 }
