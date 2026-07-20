@@ -69,18 +69,74 @@ export default defineConfig({
       ],
       '/api-cnvd-skills/': [
         {
-          text: 'cnvd_skills 包',
+          text: '概览',
           items: [
             { text: 'CnvdSkills', link: '/api-cnvd-skills/cnvd-skills' },
             { text: 'Config', link: '/api-cnvd-skills/config' },
+            { text: '字段速查', link: '/api-cnvd-skills/fields-reference' },
+            { text: 'WithConfig 对照', link: '/api-cnvd-skills/withconfig-variants' }
+          ]
+        },
+        {
+          text: '类型详解',
+          collapsed: true,
+          items: [
             { text: 'VulDetail', link: '/api-cnvd-skills/vul-detail' },
             { text: 'VulList', link: '/api-cnvd-skills/vul-list' },
             { text: 'VulListQuery', link: '/api-cnvd-skills/vul-list-query' },
             { text: 'VulPatch', link: '/api-cnvd-skills/vul-patch' },
-            { text: 'Proxy', link: '/api-cnvd-skills/proxy' },
-            { text: '字段速查', link: '/api-cnvd-skills/fields-reference' },
-            { text: 'WithConfig 对照', link: '/api-cnvd-skills/withconfig-variants' },
-            { text: '示例', link: '/api-cnvd-skills/examples/basic-vul-list' }
+            { text: 'Proxy', link: '/api-cnvd-skills/proxy' }
+          ]
+        },
+        {
+          text: '字段逐项',
+          collapsed: true,
+          items: [
+            { text: 'VulDetail 字段', link: '/api-cnvd-skills/types/vul-detail-fields' },
+            { text: 'Config 字段', link: '/api-cnvd-skills/types/config-output' },
+            { text: 'VulListQuery 字段', link: '/api-cnvd-skills/types/vul-list-query-fields' },
+            { text: 'VulList 字段', link: '/api-cnvd-skills/types/vul-list-fields' },
+            { text: 'VulPatch 字段', link: '/api-cnvd-skills/types/vul-patch-fields' },
+            { text: 'HazardLevel 字段', link: '/api-cnvd-skills/types/hazard-level-fields' },
+            { text: 'VendorPatch 字段', link: '/api-cnvd-skills/types/vendor-patch-fields' },
+            { text: 'ProxyResponse 字段', link: '/api-cnvd-skills/types/proxy-response-fields' }
+          ]
+        },
+        {
+          text: '方法参考',
+          collapsed: true,
+          items: [
+            { text: 'NewCnvdSkills', link: '/api-cnvd-skills/methods/new-cnvd-skills' },
+            { text: 'VulList 主流程', link: '/api-cnvd-skills/methods/vul-list-method' },
+            { text: 'VulListWithQuery', link: '/api-cnvd-skills/methods/vul-list-with-query-method' },
+            { text: 'RequestVulDetail', link: '/api-cnvd-skills/methods/request-vul-detail' },
+            { text: 'FetchVulDetail', link: '/api-cnvd-skills/methods/fetch-vul-detail' },
+            { text: 'RequestVulListByOffset', link: '/api-cnvd-skills/methods/request-vul-list-offset' },
+            { text: 'RequestVulListByQuery', link: '/api-cnvd-skills/methods/request-vul-list-query' },
+            { text: 'RequestVulPatch', link: '/api-cnvd-skills/methods/request-vul-patch' },
+            { text: 'ParseVulDetail', link: '/api-cnvd-skills/methods/parse-vul-detail' },
+            { text: 'ParseVulList', link: '/api-cnvd-skills/methods/parse-vul-list' },
+            { text: 'ParseVulPatch', link: '/api-cnvd-skills/methods/parse-vul-patch' },
+            { text: 'FixedProxyProvider', link: '/api-cnvd-skills/methods/fixed-proxy-provider' },
+            { text: 'PinYiProxyProvider', link: '/api-cnvd-skills/methods/pinyi-proxy-provider' },
+            { text: 'DefaultConfig', link: '/api-cnvd-skills/methods/default-config' },
+            { text: 'WithConfig 模式总览', link: '/api-cnvd-skills/methods/withconfig-overview' }
+          ]
+        },
+        {
+          text: '示例集',
+          collapsed: true,
+          items: [
+            { text: '基础列表抓取', link: '/api-cnvd-skills/examples/basic-vul-list' },
+            { text: '单条详情', link: '/api-cnvd-skills/examples/single-detail' },
+            { text: '关键词检索', link: '/api-cnvd-skills/examples/search-by-keyword' },
+            { text: '日期范围', link: '/api-cnvd-skills/examples/date-range' },
+            { text: '补丁抓取', link: '/api-cnvd-skills/examples/patch-fetch' },
+            { text: '代理轮换', link: '/api-cnvd-skills/examples/proxy-rotation' },
+            { text: '去重续抓', link: '/api-cnvd-skills/examples/dedup-resume' },
+            { text: '并发抓取', link: '/api-cnvd-skills/examples/concurrent-fetch' },
+            { text: 'CLI 封装', link: '/api-cnvd-skills/examples/cli-wrapper' },
+            { text: '离线解析本地 HTML', link: '/api-cnvd-skills/examples/parse-local-html' }
           ]
         }
       ],
