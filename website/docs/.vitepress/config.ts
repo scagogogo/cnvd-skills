@@ -142,15 +142,75 @@ export default defineConfig({
       ],
       '/api-gojsl/': [
         {
-          text: 'go-jsl 包 (jsl)',
+          text: '概览',
           items: [
             { text: 'JslClient', link: '/api-gojsl/jsl-client' },
             { text: 'HttpClient', link: '/api-gojsl/http-client' },
             { text: 'CaptchaSolver', link: '/api-gojsl/captcha-solver' },
             { text: '错误变量', link: '/api-gojsl/errors' },
+            { text: '三层解密深度解析', link: '/api-gojsl/three-layers-deep-dive' }
+          ]
+        },
+        {
+          text: '类型与方法',
+          collapsed: true,
+          items: [
             { text: 'Solver 实现详解', link: '/api-gojsl/solver-implementations' },
-            { text: '三层解密深度解析', link: '/api-gojsl/three-layers-deep-dive' },
-            { text: '示例', link: '/api-gojsl/examples/basic-get' }
+            { text: 'JslClient 结构', link: '/api-gojsl/types/jsl-client-struct' },
+            { text: 'HttpClient 结构', link: '/api-gojsl/types/http-client-struct' },
+            { text: 'CaptchaSolver 接口', link: '/api-gojsl/types/captcha-solver-interface' },
+            { text: 'secondLayerParams', link: '/api-gojsl/types/second-layer-params' },
+            { text: 'UA 池内部', link: '/api-gojsl/types/ua-pool-internals' },
+            { text: 'NewJslClient', link: '/api-gojsl/methods/new-jsl-client' },
+            { text: 'Get 方法', link: '/api-gojsl/methods/get' },
+            { text: 'NewHttpClient', link: '/api-gojsl/methods/new-http-client' },
+            { text: 'Do / DoStatus', link: '/api-gojsl/methods/do' },
+            { text: 'DoPost / DoPostStatus', link: '/api-gojsl/methods/do-post' },
+            { text: 'Solve 接口方法', link: '/api-gojsl/methods/solve' },
+            { text: 'processCaptcha 内部', link: '/api-gojsl/methods/process-captcha-internals' }
+          ]
+        },
+        {
+          text: '示例',
+          collapsed: true,
+          items: [
+            { text: '基础 GET', link: '/api-gojsl/examples/basic-get' },
+            { text: '验证码全自动', link: '/api-gojsl/examples/captcha-auto' },
+            { text: '验证码交互', link: '/api-gojsl/examples/captcha-interactive' },
+            { text: '自定义 Solver', link: '/api-gojsl/examples/custom-solver' },
+            { text: '代理与超时', link: '/api-gojsl/examples/proxy-timeout' },
+            { text: 'UA 轮换', link: '/api-gojsl/examples/ua-rotation' },
+            { text: '独立使用', link: '/api-gojsl/examples/standalone-use' },
+            { text: '错误处理', link: '/api-gojsl/examples/error-handling' }
+          ]
+        }
+      ],
+      '/faq/': [
+        {
+          text: 'FAQ 与 Cookbook',
+          items: [
+            { text: '索引', link: '/faq/index' },
+            { text: '为何自研', link: '/faq/why-self-implementation' },
+            { text: '移除 jsl_sdk', link: '/faq/jsl-sdk-removed' },
+            { text: '验证码错误', link: '/faq/captcha-required-error' },
+            { text: '识别失败排查', link: '/faq/captcha-solve-failed' },
+            { text: '代理被封', link: '/faq/proxy-banned' },
+            { text: 'ddddocr 安装', link: '/faq/ddddocr-install' },
+            { text: 'Go 1.18 兼容', link: '/faq/go-1.18-compat' },
+            { text: 'monorepo replace', link: '/faq/monorepo-replace' },
+            { text: '并发安全', link: '/faq/concurrent-safe' },
+            { text: '限流应对', link: '/faq/rate-limit' },
+            { text: 'Jitter 调参', link: '/faq/jitter-tuning' },
+            { text: '输出解析', link: '/faq/output-jsonl-parse' },
+            { text: '日期格式', link: '/faq/date-format' },
+            { text: 'CNVD 改版', link: '/faq/cnvd-changed' },
+            { text: '源码编译', link: '/faq/build-from-source' },
+            { text: '二进制下载', link: '/faq/binary-download' },
+            { text: 'CI 集成', link: '/faq/ci-integration' },
+            { text: 'Docker 化', link: '/faq/docker' },
+            { text: '性能调优', link: '/faq/performance' },
+            { text: '安全须知', link: '/faq/security-notice' },
+            { text: '版本变更', link: '/faq/changelog' }
           ]
         }
       ]
